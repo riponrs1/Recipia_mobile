@@ -342,7 +342,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
     return IntrinsicHeight(
       child: Row(
         children: [
-          _buildModernTab('Personal', 0, Icons.restaurant_menu_rounded),
+          _buildModernTab('Personal', 0, Icons.book_rounded),
           const SizedBox(width: 12),
           _buildModernTab('Community', 1, Icons.explore_rounded),
         ],
@@ -470,7 +470,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                               end: Alignment.bottomRight,
                             ),
                           ),
-                          child: const Icon(Icons.flatware_rounded,
+                          child: const Icon(Icons.menu_book_rounded,
                               color: Colors.white54, size: 40),
                         ),
                   _buildCardBadges(recipe, isOwner),

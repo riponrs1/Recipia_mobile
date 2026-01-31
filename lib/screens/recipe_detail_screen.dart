@@ -318,8 +318,8 @@ ${_recipe.process}
         placeholder: (context, url) => Container(color: Colors.grey.shade400),
         errorWidget: (context, url, error) => Container(
             color: Colors.orange.shade100,
-            child:
-                const Icon(Icons.restaurant, size: 100, color: Colors.orange)),
+            child: const Icon(Icons.menu_book_rounded,
+                size: 100, color: Colors.orange)),
       );
     } else {
       return Image.file(
@@ -327,8 +327,8 @@ ${_recipe.process}
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) => Container(
             color: Colors.orange.shade100,
-            child:
-                const Icon(Icons.restaurant, size: 100, color: Colors.orange)),
+            child: const Icon(Icons.menu_book_rounded,
+                size: 100, color: Colors.orange)),
       );
     }
   }
@@ -424,7 +424,7 @@ ${_recipe.process}
                 ? _buildRecipeImage(_recipe.itemPhoto!)
                 : Container(
                     color: const Color(0xFFF7F7F7),
-                    child: Icon(Icons.restaurant,
+                    child: Icon(Icons.menu_book_rounded,
                         size: 80, color: Colors.grey.shade300),
                   ),
             const DecoratedBox(

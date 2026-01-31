@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import '../gemini_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
@@ -351,7 +352,58 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     }
   }
 
+  Future<bool> _ensureGeminiApiKey() async {
+    final gemini = GeminiService();
+    String? key = await gemini.getApiKey();
+    if (key != null && key.isNotEmpty) return true;
+
+    final controller = TextEditingController();
+    final newKey = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gemini API Key Required'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+                'To use free AI scanning, you need a Google Gemini API Key.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              decoration: const InputDecoration(
+                hintText: 'Paste your API Key here',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Get one for free at: aistudio.google.com',
+              style: TextStyle(fontSize: 10, color: Colors.blue),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Save Key'),
+          ),
+        ],
+      ),
+    );
+
+    if (newKey != null && newKey.trim().isNotEmpty) {
+      await gemini.saveApiKey(newKey.trim());
+      return true;
+    }
+    return false;
+  }
+
   Future<void> _scanWithAI() async {
+    if (!await _ensureGeminiApiKey()) return;
+
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
@@ -396,7 +448,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
 
       setState(() => _isLoading = true);
 
-      final result = await _apiService.analyzeRecipeImage(image.path);
+      final result = await GeminiService().analyzeRecipeImage(image.path);
 
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -447,14 +499,14 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             backgroundColor: Color(0xFF27AE60)));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("AI Scan failed. Is GEMINI_API_KEY set?"),
+            content: Text("AI Scan failed. Check your API Key or connection."),
             backgroundColor: Colors.red));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
       }
     }
   }
@@ -534,7 +586,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                                   controller: _nameController,
                                   label: "Recipe Title",
                                   hint: "e.g. Grandma's Apple Pie",
-                                  icon: Icons.restaurant_menu,
+                                  icon: Icons.menu_book_rounded,
                                   validator: (v) =>
                                       v!.isEmpty ? "Required" : null,
                                 ),
@@ -671,7 +723,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             else
               Container(
                 color: Colors.grey.shade200,
-                child: Icon(Icons.restaurant,
+                child: Icon(Icons.menu_book_rounded,
                     size: 80, color: Colors.grey.shade400),
               ),
             Container(
