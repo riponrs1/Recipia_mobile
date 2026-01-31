@@ -7,6 +7,7 @@ import 'recipe_form_screen.dart';
 import 'recipe_detail_screen.dart';
 import 'recipe_list_screen.dart';
 import 'ingredients_screen.dart';
+import 'profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -20,7 +21,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _isLoading = true;
   int _recipeCount = 0;
   int _ingredientCount = 0;
-  int _sharedCount = 0;
   List<Recipe> _recentRecipes = [];
   String _userName = 'Chef';
 
@@ -40,7 +40,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _userName = user['name'];
           _recipeCount = stats['total_recipes'];
           _ingredientCount = stats['total_ingredients'];
-          _sharedCount = stats['total_shared'] ?? 0;
 
           List<dynamic> recentJson = stats['recent_recipes'];
           _recentRecipes =
@@ -67,6 +66,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.person_outline, color: Colors.black87),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
+          ),
+        ],
       ),
       backgroundColor: const Color(0xFFF5F7FA),
       body: RefreshIndicator(
@@ -110,17 +118,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: const Color(0xFF0D6EFD),
                     ),
                     const SizedBox(width: 16),
-                    _buildStatCard(
-                      icon: Icons.people,
-                      label: 'Shared with Me',
-                      count: _sharedCount.toString(),
-                      color: const Color(0xFF6F42C1),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
                     _buildStatCard(
                       icon: Icons.kitchen,
                       label: 'Ingredients',

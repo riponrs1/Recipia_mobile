@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'database_helper.dart';
@@ -24,7 +27,7 @@ class ApiService {
     // Local file path check
     if (path.startsWith('/') ||
         path.startsWith('file://') ||
-        path.contains('com.ripon.recipia') ||
+        path.contains('com.recipia.com') ||
         path.contains('data/user')) {
       return path;
     }
@@ -139,7 +142,9 @@ class ApiService {
     } catch (e) {
       final cached = await DatabaseHelper().getCachedData('user_profile');
       if (cached != null) return cached;
-      throw Exception('Connection error: $e');
+
+      // Fallback for any connection error (Offline mode support)
+      return {'id': 0, 'name': 'Offline Chef', 'email': 'local'};
     }
   }
 
@@ -165,7 +170,16 @@ class ApiService {
     } catch (e) {
       final cached = await DatabaseHelper().getCachedData('home_stats');
       if (cached != null) return cached;
-      throw Exception('Connection error: $e');
+
+      // Fallback for any connection error (Offline mode support)
+      final recipes = await DatabaseHelper().getCachedRecipes();
+      final ingredients = await DatabaseHelper().getCachedIngredients();
+      return {
+        'total_recipes': recipes.length,
+        'total_ingredients': ingredients.length,
+        'total_shared': 0,
+        'recent_recipes': recipes.take(5).toList(),
+      };
     }
   }
 
@@ -252,6 +266,8 @@ class ApiService {
       {String? itemPhotoPath,
       String? recipePhotoPath,
       bool allowFallback = true}) async {
+    itemPhotoPath = await _saveFilePermanently(itemPhotoPath);
+    recipePhotoPath = await _saveFilePermanently(recipePhotoPath);
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
@@ -285,11 +301,15 @@ class ApiService {
       if (!allowFallback) rethrow;
 
       final localId = DateTime.now().millisecondsSinceEpoch;
-      final user = await getUser();
+      int userId = 0;
+      try {
+        final user = await getUser();
+        userId = user['id'];
+      } catch (_) {}
 
       await DatabaseHelper().saveLocalRecipe({
         'id': localId,
-        'user_id': user['id'],
+        'user_id': userId,
         'name': data['name'],
         'brand_name': data['brand_name'],
         'section_name': data['section_name'],
@@ -317,6 +337,8 @@ class ApiService {
       {String? itemPhotoPath,
       String? recipePhotoPath,
       bool allowFallback = true}) async {
+    itemPhotoPath = await _saveFilePermanently(itemPhotoPath);
+    recipePhotoPath = await _saveFilePermanently(recipePhotoPath);
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
@@ -361,7 +383,12 @@ class ApiService {
     }
   }
 
-  Future<String?> deleteRecipe(int id) async {
+  Future<String?> deleteRecipe(int id, {bool permanent = false}) async {
+    if (!permanent) {
+      await DatabaseHelper().softDeleteLocalRecipe(id);
+      return null;
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
@@ -387,6 +414,10 @@ class ApiService {
       await DatabaseHelper().deleteLocalRecipe(id);
       return null;
     }
+  }
+
+  Future<void> restoreRecipe(int id) async {
+    await DatabaseHelper().restoreLocalRecipe(id);
   }
 
   Future<void> syncPendingActions() async {
@@ -542,6 +573,119 @@ class ApiService {
     }
   }
 
+  Future<Map<String, dynamic>?> analyzeRecipeImage(String imagePath) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+
+    try {
+      var request =
+          http.MultipartRequest('POST', Uri.parse('$baseUrl/recipes-analyze'));
+      request.headers.addAll({
+        'Authorization': 'Bearer $token',
+        'Accept': 'application/json',
+      });
+
+      request.files.add(await http.MultipartFile.fromPath('image', imagePath));
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        final resp = jsonDecode(response.body);
+        print('AI Error: ${resp['message']}');
+        return null;
+      }
+    } catch (e) {
+      print('AI Error: $e');
+      return null;
+    }
+  }
+
+  Future<List<dynamic>> getSections() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/recipe-sections'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) {
+        final sections = jsonDecode(response.body);
+        await DatabaseHelper().cacheData('recipe_sections', sections);
+        return sections;
+      } else {
+        throw Exception('Failed to load sections');
+      }
+    } catch (e) {
+      final cached = await DatabaseHelper().getCachedData('recipe_sections');
+      if (cached != null) return cached as List<dynamic>;
+      return [];
+    }
+  }
+
+  Future<String?> createSection(String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/recipe-sections'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'name': name}),
+      );
+      if (response.statusCode == 201) return null;
+      return 'Failed to create section';
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+
+  Future<String?> deleteSection(int id) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    try {
+      final response = await http.delete(
+        Uri.parse('$baseUrl/recipe-sections/$id'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      if (response.statusCode == 200) return null;
+      return 'Failed to delete section';
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+
+  Future<String?> updateSection(int id, String name) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    try {
+      final response = await http.put(
+        Uri.parse('$baseUrl/recipe-sections/$id'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'name': name}),
+      );
+      if (response.statusCode == 200) return null;
+      return 'Failed to update section';
+    } catch (e) {
+      return 'Error: $e';
+    }
+  }
+
   Future<String?> updateProfile(Map<String, dynamic> data,
       {String? avatarPath}) async {
     final prefs = await SharedPreferences.getInstance();
@@ -636,5 +780,28 @@ class ApiService {
       } catch (e) {}
     }
     await prefs.remove('token');
+  }
+
+  Future<String?> _saveFilePermanently(String? path) async {
+    if (path == null || path.isEmpty) return null;
+    try {
+      final file = File(path);
+      if (!await file.exists()) return path;
+
+      // Check if already in documents
+      final docsDir = await getApplicationDocumentsDirectory();
+      if (path.contains(docsDir.path)) return path;
+
+      final mediaDir = Directory(join(docsDir.path, 'media'));
+      if (!await mediaDir.exists()) await mediaDir.create(recursive: true);
+
+      final fileName = basename(path);
+      final newPath = join(mediaDir.path, fileName);
+      final newFile = await file.copy(newPath);
+      return newFile.path;
+    } catch (e) {
+      print('Error saving file permanently: $e');
+      return path;
+    }
   }
 }

@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "43213704131",
+    "project_id": "recipia-f1ab9",
+    "storage_bucket": "recipia-f1ab9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:43213704131:android:2c09a917a8fb9f600d0b76",
+        "android_client_info": {
+          "package_name": "com.recipia.com"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "43213704131-vs4t5djn4r2iibla93nr49jvsgfcoor0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.recipia.com",
+            "certificate_hash": "4da133d415e0a10be08e52c8dc2f75d169314c87"
+          }
+        },
+        {
+          "client_id": "43213704131-ebkcnhkujuh5tiou4qroi1r88rfavvic.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-mBvrzLxwx5oL_Xo6GSp4AJmQmrSFLsc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "43213704131-ebkcnhkujuh5tiou4qroi1r88rfavvic.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

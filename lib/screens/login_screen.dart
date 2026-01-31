@@ -313,28 +313,6 @@ class _LoginScreenState extends State<LoginScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          // Continue Offline
-                          TextButton(
-                            onPressed: () async {
-                              final prefs =
-                                  await SharedPreferences.getInstance();
-                              await prefs.setBool('is_offline', true);
-                              if (mounted) {
-                                Navigator.of(context).pushReplacement(
-                                  MaterialPageRoute(
-                                      builder: (_) => const MainScreen()),
-                                );
-                              }
-                            },
-                            child: const Text(
-                              'Continue Offline',
-                              style: TextStyle(
-                                color: Color(0xFFE74C3C),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
                         ],
                       ),
                     ),

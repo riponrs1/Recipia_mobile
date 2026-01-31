@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 // ignore: deprecated_member_use
 import 'package:share_plus/share_plus.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -9,6 +10,7 @@ import 'package:excel/excel.dart' hide Border;
 import 'package:path_provider/path_provider.dart';
 import '../api_service.dart';
 import '../models/recipe.dart';
+import '../sync_provider.dart';
 import '../utils/unit_converter.dart';
 import 'recipe_form_screen.dart';
 
@@ -280,6 +282,15 @@ ${_recipe.process}
       if (error == null) {
         if (mounted) {
           Navigator.pop(context, true);
+
+          // Trigger auto backup if enabled
+          try {
+            final syncProvider =
+                Provider.of<SyncProvider>(context, listen: false);
+            syncProvider.triggerAutoBackupIfEnabled();
+          } catch (e) {
+            // Ignore
+          }
         }
       } else {
         if (mounted) {
@@ -296,105 +307,6 @@ ${_recipe.process}
     if (result == true) {
       _refreshRecipe();
     }
-  }
-
-  Future<void> _manageAccess() async {
-    final usernameController = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            title: const Text('Manage Access'),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Give access via username or email:',
-                      style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: usernameController,
-                          decoration: const InputDecoration(
-                              hintText: 'Username / Email'),
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.send, color: Colors.blue),
-                        onPressed: () async {
-                          if (usernameController.text.isEmpty) return;
-                          final msg = await _apiService.shareRecipeAccess(
-                              _recipe.id, usernameController.text);
-                          usernameController.clear();
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(msg ?? 'Error')));
-                            await _refreshRecipe();
-                            setDialogState(() {});
-                          }
-                        },
-                      )
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text('People with access:',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  if (_recipe.sharedWith == null || _recipe.sharedWith!.isEmpty)
-                    const Text('No shared users yet.',
-                        style: TextStyle(fontStyle: FontStyle.italic))
-                  else
-                    SizedBox(
-                      height: 150,
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: _recipe.sharedWith!.length,
-                        itemBuilder: (ctx, i) {
-                          final user = _recipe.sharedWith![i];
-                          final name = user['name'] ?? 'Unknown';
-                          final username = user['username'] ?? 'User';
-                          final uid = user['id'];
-                          return ListTile(
-                            dense: true,
-                            contentPadding: EdgeInsets.zero,
-                            leading: CircleAvatar(
-                                maxRadius: 12,
-                                child: Text(name[0].toUpperCase())),
-                            title: Text('$name (@$username)'),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.remove_circle,
-                                  color: Colors.red, size: 20),
-                              onPressed: () async {
-                                final msg = await _apiService
-                                    .removeRecipeAccess(_recipe.id, uid);
-                                if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(msg ?? 'Error')));
-                                  await _refreshRecipe();
-                                  setDialogState(() {});
-                                }
-                              },
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Close'))
-            ],
-          );
-        },
-      ),
-    );
   }
 
   Widget _buildRecipeImage(String path) {
@@ -425,303 +337,551 @@ ${_recipe.process}
   Widget build(BuildContext context) {
     bool isOwner = _currentUserId == _recipe.userId;
     return Scaffold(
+      backgroundColor: Colors.white,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
+              physics: const BouncingScrollPhysics(),
               slivers: [
-                SliverAppBar(
-                  expandedHeight: 300.0,
-                  floating: false,
-                  pinned: true,
-                  flexibleSpace: FlexibleSpaceBar(
-                    title: Text(
-                      _recipe.name,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: Colors.white, shadows: [
-                        Shadow(
-                            offset: Offset(0, 1),
-                            blurRadius: 3.0,
-                            color: Colors.black)
-                      ]),
-                    ),
-                    background: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        _recipe.itemPhoto != null
-                            ? _buildRecipeImage(_recipe.itemPhoto!)
-                            : Container(
-                                color: Colors.orange.shade100,
-                                child: const Icon(Icons.restaurant,
-                                    size: 100, color: Colors.orange)),
-                        const DecoratedBox(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black54,
-                                Colors.transparent,
-                                Colors.black54
-                              ],
-                              stops: [0.0, 0.3, 1.0],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  actions: [
-                    if (isOwner)
-                      Container(
-                        margin: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(
-                            color: Colors.black45, shape: BoxShape.circle),
-                        child: IconButton(
-                            icon: const Icon(Icons.person_add,
-                                color: Colors.white),
-                            onPressed: _manageAccess,
-                            tooltip: 'Manage Access'),
-                      ),
-                    Container(
-                      margin: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                          color: Colors.black45, shape: BoxShape.circle),
-                      child: IconButton(
-                          icon: const Icon(Icons.share, color: Colors.white),
-                          onPressed: _shareRecipe,
-                          tooltip: 'Share Text'),
-                    ),
-                  ],
-                ),
+                _buildModernAppBar(isOwner),
                 SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Wrap(
-                          spacing: 8.0,
-                          runSpacing: 4.0,
-                          children: [
-                            if (_recipe.brandName != null &&
-                                _recipe.brandName!.isNotEmpty)
-                              Chip(
-                                  label: Text(_recipe.brandName!),
-                                  backgroundColor: Colors.orange.shade50),
-                            Chip(
-                                label: Text(_recipe.sectionName),
-                                backgroundColor: Colors.blue.shade50),
-                            if (_currentUserId != null &&
-                                !isOwner &&
-                                _recipe.ownerName != null)
-                              Chip(
-                                avatar: const Icon(Icons.person,
-                                    size: 16, color: Colors.white),
-                                label: Text('By ${_recipe.ownerName}'),
-                                backgroundColor: Colors.teal,
-                                labelStyle: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text('Batch Size',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16)),
-                              Row(
-                                children: [
-                                  IconButton(
-                                      icon: const Icon(
-                                          Icons.remove_circle_outline),
-                                      onPressed: () => _updateBatch(-0.5)),
-                                  SizedBox(
-                                    width: 60,
-                                    child: TextField(
-                                      controller: _batchController,
-                                      keyboardType:
-                                          const TextInputType.numberWithOptions(
-                                              decimal: true),
-                                      textAlign: TextAlign.center,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 18),
-                                      decoration: const InputDecoration(
-                                        border: InputBorder.none,
-                                        isDense: true,
-                                        contentPadding: EdgeInsets.zero,
-                                      ),
-                                      onChanged: (val) {
-                                        if (val.isEmpty) return;
-                                        final parsed = double.tryParse(val);
-                                        if (parsed != null && parsed > 0) {
-                                          setState(
-                                              () => _batchMultiplier = parsed);
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                  IconButton(
-                                      icon:
-                                          const Icon(Icons.add_circle_outline),
-                                      onPressed: () => _updateBatch(0.5)),
-                                ],
-                              )
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text('Ingredients',
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.indigo)),
-                        const SizedBox(height: 8),
-                        if (_parsedIngredients.isEmpty &&
-                            _recipe.ingredients.isNotEmpty &&
-                            !_recipe.ingredients.startsWith('['))
-                          Text(_recipe.ingredients)
-                        else if (_parsedIngredients.isNotEmpty)
-                          Card(
-                            elevation: 2,
-                            surfaceTintColor: Colors.white,
-                            child: Column(
-                              children: [
-                                ..._parsedIngredients.map((item) => ListTile(
-                                      leading: const Icon(Icons.circle,
-                                          size: 8, color: Colors.orange),
-                                      title: Text(item['name'] ?? '',
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.bold)),
-                                      trailing: Container(
-                                        constraints:
-                                            const BoxConstraints(maxWidth: 100),
-                                        child: Text(
-                                          '${_formatQty(item['qty'])} ${item['unit'] ?? ''}',
-                                          style: const TextStyle(
-                                              color: Colors.grey, fontSize: 14),
-                                          textAlign: TextAlign.end,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ),
-                                    )),
-                                const Divider(),
-                                Padding(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 16, vertical: 12),
-                                  child: Row(
-                                    mainAxisAlignment:
-                                        MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text("Total:",
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16)),
-                                      Flexible(
-                                        child: Text(
-                                          '${_calculateTotalWeight()} g',
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 18,
-                                              color: Colors.indigo),
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      )
-                                    ],
-                                  ),
-                                )
-                              ],
-                            ),
-                          )
-                        else if (_isFetchingDetails)
-                          const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(20.0),
-                              child: CircularProgressIndicator(),
-                            ),
-                          )
-                        else
-                          const Text('No ingredients listed.',
-                              style: TextStyle(
-                                  fontStyle: FontStyle.italic,
-                                  color: Colors.grey)),
-                        const SizedBox(height: 24),
-                        const Text('Preparation',
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.indigo)),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.orange.shade200),
-                          ),
-                          child: Text(
-                            _recipe.process,
-                            style: const TextStyle(fontSize: 16, height: 1.5),
-                          ),
-                        ),
-                        const SizedBox(height: 40),
-                        const Divider(),
-                        const SizedBox(height: 16),
-                        Wrap(
-                          spacing: 8.0,
-                          runSpacing: 8.0,
-                          alignment: WrapAlignment.spaceEvenly,
-                          children: [
-                            OutlinedButton.icon(
-                              onPressed: _downloadPdf,
-                              icon: const Icon(Icons.picture_as_pdf,
-                                  color: Colors.red),
-                              label: const Text('PDF'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: _downloadExcel,
-                              icon: const Icon(Icons.table_view,
-                                  color: Colors.green),
-                              label: const Text('Excel'),
-                            ),
-                            if (isOwner)
-                              FilledButton.icon(
-                                onPressed: _editRecipe,
-                                icon: const Icon(Icons.edit),
-                                label: const Text('Edit'),
-                                style: FilledButton.styleFrom(
-                                    backgroundColor:
-                                        Theme.of(context).primaryColor),
-                              ),
-                            if (isOwner)
-                              FilledButton.icon(
-                                onPressed: _deleteRecipe,
-                                icon: const Icon(Icons.delete),
-                                label: const Text('Delete'),
-                                style: FilledButton.styleFrom(
-                                    backgroundColor: Colors.red),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 40),
-                      ],
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(32)),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildHeaderSection(isOwner),
+                          const SizedBox(height: 32),
+                          _buildBatchControl(),
+                          const SizedBox(height: 32),
+                          _buildIngredientsSection(),
+                          const SizedBox(height: 32),
+                          _buildPreparationSection(),
+                          const SizedBox(height: 40),
+                          _buildActionButtons(isOwner),
+                          const SizedBox(height: 60),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
+    );
+  }
+
+  Widget _buildModernAppBar(bool isOwner) {
+    return SliverAppBar(
+      expandedHeight: 350.0,
+      elevation: 0,
+      pinned: true,
+      stretch: true,
+      backgroundColor: Colors.white,
+      leading: IconButton(
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.3),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+        ),
+        onPressed: () => Navigator.pop(context),
+      ),
+      actions: [
+        Container(
+          margin: const EdgeInsets.only(right: 16),
+          child: IconButton(
+            icon: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.3),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.share_outlined,
+                  color: Colors.white, size: 20),
+            ),
+            onPressed: _shareRecipe,
+            tooltip: 'Share Recipe',
+          ),
+        ),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        stretchModes: const [
+          StretchMode.zoomBackground,
+          StretchMode.blurBackground,
+        ],
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            _recipe.itemPhoto != null
+                ? _buildRecipeImage(_recipe.itemPhoto!)
+                : Container(
+                    color: const Color(0xFFF7F7F7),
+                    child: Icon(Icons.restaurant,
+                        size: 80, color: Colors.grey.shade300),
+                  ),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black26,
+                    Colors.transparent,
+                    Colors.black54,
+                  ],
+                  stops: [0.0, 0.4, 1.0],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHeaderSection(bool isOwner) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                _recipe.name,
+                style: const TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1A1A1A),
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8.0,
+          runSpacing: 8.0,
+          children: [
+            if (_recipe.brandName != null && _recipe.brandName!.isNotEmpty)
+              _buildTag(
+                  _recipe.brandName!,
+                  const Color(0xFFE74C3C).withOpacity(0.1),
+                  const Color(0xFFE74C3C)),
+            _buildTag(
+                _recipe.sectionName,
+                const Color(0xFF3498DB).withOpacity(0.1),
+                const Color(0xFF3498DB)),
+            if (_currentUserId != null && !isOwner && _recipe.ownerName != null)
+              _buildTag('By ${_recipe.ownerName}', Colors.teal.withOpacity(0.1),
+                  Colors.teal),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTag(String label, Color bgColor, Color textColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 12,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBatchControl() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDFDFD),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF0F0F0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.02),
+            blurRadius: 20,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE74C3C).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.scale_outlined,
+                color: Color(0xFFE74C3C), size: 24),
+          ),
+          const SizedBox(width: 16),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Batch Size',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                Text(
+                  'Adjust portions',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFF5F5F5),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                _buildBatchButton(Icons.remove, () => _updateBatch(-0.5)),
+                SizedBox(
+                  width: 50,
+                  child: TextField(
+                    controller: _batchController,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w800, fontSize: 16),
+                    decoration: const InputDecoration(
+                      border: InputBorder.none,
+                      isDense: true,
+                    ),
+                    onChanged: (val) {
+                      if (val.isEmpty) return;
+                      final parsed = double.tryParse(val);
+                      if (parsed != null && parsed > 0) {
+                        setState(() => _batchMultiplier = parsed);
+                      }
+                    },
+                  ),
+                ),
+                _buildBatchButton(Icons.add, () => _updateBatch(0.5)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBatchButton(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Icon(icon, size: 18, color: const Color(0xFF1A1A1A)),
+      ),
+    );
+  }
+
+  Widget _buildIngredientsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.restaurant_menu_rounded,
+                color: Color(0xFFE74C3C), size: 22),
+            SizedBox(width: 8),
+            Text(
+              'Ingredients',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1A1A1A)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (_parsedIngredients.isEmpty &&
+            _recipe.ingredients.isNotEmpty &&
+            !_recipe.ingredients.startsWith('['))
+          _buildLegacyIngredientsText()
+        else if (_parsedIngredients.isNotEmpty)
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: const Color(0xFFF0F0F0)),
+            ),
+            child: Column(
+              children: [
+                ..._parsedIngredients.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final item = entry.value;
+                  final isLast = index == _parsedIngredients.length - 1;
+                  return _buildIngredientItem(item, !isLast);
+                }),
+                _buildTotalWeightFooter(),
+              ],
+            ),
+          )
+        else if (_isFetchingDetails)
+          const Center(
+              child: Padding(
+                  padding: EdgeInsets.all(20),
+                  child: CircularProgressIndicator()))
+        else
+          const Center(
+              child: Text('No ingredients listed.',
+                  style: TextStyle(
+                      fontStyle: FontStyle.italic, color: Colors.grey))),
+      ],
+    );
+  }
+
+  Widget _buildLegacyIngredientsText() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F9F9),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Text(_recipe.ingredients,
+          style: const TextStyle(fontSize: 15, height: 1.5)),
+    );
+  }
+
+  Widget _buildIngredientItem(Map<String, dynamic> item, bool showDivider) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F5F5),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Icon(Icons.check, size: 16, color: Colors.green),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(
+                  item['name'] ?? '',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: Color(0xFF333333)),
+                ),
+              ),
+              Text(
+                '${_formatQty(item['qty'])} ${item['unit'] ?? ''}',
+                style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                    color: Color(0xFFE74C3C)),
+              ),
+            ],
+          ),
+        ),
+        if (showDivider)
+          Padding(
+            padding: const EdgeInsets.only(left: 68),
+            child: Divider(height: 1, color: Colors.grey.withOpacity(0.1)),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTotalWeightFooter() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFDFDFD),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text("Total Weight",
+              style:
+                  TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
+          Text(
+            '${_calculateTotalWeight()} g',
+            style: const TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 18,
+                color: Color(0xFF1A1A1A)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreparationSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Row(
+          children: [
+            Icon(Icons.menu_book_rounded, color: Color(0xFFE74C3C), size: 22),
+            SizedBox(width: 8),
+            Text(
+              'Preparation',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Color(0xFF1A1A1A)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF9F9F9),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0xFFF0F0F0)),
+          ),
+          child: Text(
+            _recipe.process,
+            style: const TextStyle(
+                fontSize: 16, height: 1.8, color: Color(0xFF444444)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(bool isOwner) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: _buildExportButton(
+                Icons.picture_as_pdf_rounded,
+                'Download PDF',
+                const Color(0xFFE74C3C),
+                _downloadPdf,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildExportButton(
+                Icons.table_view_rounded,
+                'Export Excel',
+                const Color(0xFF27AE60),
+                _downloadExcel,
+              ),
+            ),
+          ],
+        ),
+        if (isOwner) ...[
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  Icons.edit_rounded,
+                  'Edit Recipe',
+                  const Color(0xFF3498DB),
+                  _editRecipe,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildActionButton(
+                  Icons.delete_outline_rounded,
+                  'Delete',
+                  const Color(0xFFE74C3C),
+                  _deleteRecipe,
+                  outline: true,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildExportButton(
+      IconData icon, String label, Color color, VoidCallback onTap) {
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: color,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: color.withOpacity(0.2)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(
+      IconData icon, String label, Color color, VoidCallback onTap,
+      {bool outline = false}) {
+    if (outline) {
+      return OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 18),
+        label: Text(label),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: color,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          side: BorderSide(color: color),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        ),
+      );
+    }
+    return ElevatedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
     );
   }
 }

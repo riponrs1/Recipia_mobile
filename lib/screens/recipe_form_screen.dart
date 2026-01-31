@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../api_service.dart';
+import '../database_helper.dart';
 import '../models/recipe.dart';
 import '../sync_provider.dart';
 
@@ -28,7 +29,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   // Basic Info
   final _nameController = TextEditingController();
   final _brandController = TextEditingController();
-  late String _selectedSection;
+  String _selectedSection = 'Other...';
 
   // Photos
   File? _itemPhoto;
@@ -41,15 +42,8 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   // Process
   final _processController = TextEditingController();
 
-  final List<String> _sections = [
-    'Hot Kitchen',
-    'Bakery',
-    'Pastry',
-    'Sweet',
-    'Sauce',
-    'Cold/Salad',
-    'Pizza'
-  ];
+  final List<String> _sections = [];
+  List<String> _availableBrands = [];
 
   final List<String> _units = [
     'g',
@@ -62,21 +56,113 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     'oz',
     'lb',
     'piece',
-    'pinch'
+    'pinch',
+    'Other...'
   ];
+
+  final _customSectionController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _selectedSection = _sections.first;
+    _initForm();
+  }
+
+  Future<void> _initForm() async {
+    // Load local sections first
+    try {
+      final localSections = await DatabaseHelper().getLocalSections();
+      final brands = await DatabaseHelper().getUniqueBrands();
+
+      if (mounted) {
+        setState(() {
+          _sections.clear();
+          for (var s in localSections) {
+            _sections.add(s['name']);
+          }
+          if (!_sections.contains('Other...')) {
+            _sections.add('Other...');
+          }
+
+          _availableBrands = brands;
+
+          _selectedSection =
+              _sections.isNotEmpty ? _sections.first : 'Other...';
+
+          if (widget.recipe != null) {
+            if (_sections.contains(widget.recipe!.sectionName)) {
+              _selectedSection = widget.recipe!.sectionName;
+            } else {
+              _selectedSection = 'Other...';
+              _customSectionController.text = widget.recipe!.sectionName;
+            }
+          }
+        });
+      }
+
+      // Sync from API in background
+      final sectionsJson = await _apiService.getSections();
+      if (sectionsJson.isNotEmpty) {
+        for (var s in sectionsJson) {
+          await DatabaseHelper().saveLocalSection({
+            'name': s['name'],
+            'is_system': s['user_id'] == null ? 1 : 0,
+            'icon': s['icon'] ?? 'category',
+            'created_at': s['created_at'] ?? DateTime.now().toIso8601String(),
+          });
+        }
+        final refreshedLocal = await DatabaseHelper().getLocalSections();
+        if (mounted) {
+          setState(() {
+            _sections.clear();
+            for (var s in refreshedLocal) {
+              _sections.add(s['name']);
+            }
+            if (!_sections.contains('Other...')) {
+              _sections.add('Other...');
+            }
+
+            if (widget.recipe != null) {
+              if (_sections.contains(widget.recipe!.sectionName)) {
+                _selectedSection = widget.recipe!.sectionName;
+              }
+            }
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted && _sections.isEmpty) {
+        setState(() {
+          _sections.addAll([
+            'Hot Kitchen',
+            'Bakery',
+            'Pastry',
+            'Sweet',
+            'Sauce',
+            'Cold/Salad',
+            'Pizza',
+            'Breakfast',
+            'Appetizers',
+            'Main Course',
+            'Desserts',
+            'Beverages',
+            'Seafood',
+            'Soup',
+            'Sides',
+            'Vegetarian',
+            'Vegan',
+            'Other...'
+          ]);
+          _selectedSection = _sections.first;
+        });
+      }
+    }
+
     _addIngredientRow();
 
     if (widget.recipe != null) {
       _nameController.text = widget.recipe!.name;
       _brandController.text = widget.recipe!.brandName ?? '';
-      if (_sections.contains(widget.recipe!.sectionName)) {
-        _selectedSection = widget.recipe!.sectionName;
-      }
 
       if (widget.recipe!.ingredients.isNotEmpty) {
         try {
@@ -84,10 +170,12 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           if (decoded is List) {
             _ingredientsList.clear();
             for (var item in decoded) {
+              final unitVal = item['unit'] ?? 'g';
               _addIngredientRow(
                   name: item['name'] ?? '',
                   qty: (item['qty'] ?? '').toString(),
-                  unit: item['unit'] ?? 'g');
+                  unit: _units.contains(unitVal) ? unitVal : 'Other...',
+                  customUnit: _units.contains(unitVal) ? null : unitVal);
             }
           }
         } catch (e) {
@@ -101,12 +189,16 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   }
 
   void _addIngredientRow(
-      {String name = '', String qty = '', String unit = 'g'}) {
+      {String name = '',
+      String qty = '',
+      String unit = 'g',
+      String? customUnit}) {
     setState(() {
       _ingredientsList.add({
         'name': TextEditingController(text: name),
         'qty': TextEditingController(text: qty),
         'unit': unit,
+        'customUnit': TextEditingController(text: customUnit ?? ''),
       });
     });
   }
@@ -213,6 +305,160 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     );
   }
 
+  Future<void> _showQuickAddSection() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New Section'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: 'e.g. Italian'),
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, controller.text),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+
+    if (name != null && name.trim().isNotEmpty) {
+      final trimmedName = name.trim();
+      if (!_sections.contains(trimmedName)) {
+        setState(() => _isLoading = true);
+        await DatabaseHelper().saveLocalSection({
+          'name': trimmedName,
+          'is_system': 0,
+          'icon': 'category',
+          'sort_order': _sections.length,
+          'created_at': DateTime.now().toIso8601String()
+        });
+        _apiService.createSection(trimmedName).catchError((_) => null);
+        await _initForm();
+        setState(() {
+          _selectedSection = trimmedName;
+          _isLoading = false;
+        });
+      } else {
+        setState(() => _selectedSection = trimmedName);
+      }
+    }
+  }
+
+  Future<void> _scanWithAI() async {
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Scan Paper Recipe",
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 8),
+                const Text(
+                    "Take a photo of your handwritten recipe to auto-fill",
+                    style: TextStyle(color: Colors.grey, fontSize: 12)),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildSourceOption(context, Icons.photo_library, "Gallery",
+                        ImageSource.gallery),
+                    _buildSourceOption(context, Icons.camera_alt, "Camera",
+                        ImageSource.camera),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (source == null) return;
+
+    try {
+      final XFile? image = await _picker.pickImage(source: source);
+      if (image == null) return;
+
+      setState(() => _isLoading = true);
+
+      final result = await _apiService.analyzeRecipeImage(image.path);
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
+      if (result != null) {
+        setState(() {
+          _nameController.text = result['name'] ?? _nameController.text;
+          _brandController.text = result['brand_name'] ?? _brandController.text;
+
+          if (result['section_name'] != null) {
+            String section = result['section_name'];
+            if (_sections.contains(section)) {
+              _selectedSection = section;
+            } else {
+              _selectedSection = 'Other...';
+              _customSectionController.text = section;
+            }
+          }
+
+          if (result['ingredients'] is List) {
+            _ingredientsList.clear();
+            for (var item in result['ingredients']) {
+              String unit = item['unit'] ?? 'g';
+              if (_units.contains(unit)) {
+                _addIngredientRow(
+                  name: item['name'] ?? '',
+                  qty: (item['qty'] ?? '').toString(),
+                  unit: unit,
+                );
+              } else {
+                _addIngredientRow(
+                  name: item['name'] ?? '',
+                  qty: (item['qty'] ?? '').toString(),
+                  unit: 'Other...',
+                  customUnit: unit,
+                );
+              }
+            }
+            if (_ingredientsList.isEmpty) _addIngredientRow();
+          }
+
+          _processController.text =
+              result['process'] ?? _processController.text;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("Form auto-filled! Please check and save."),
+            backgroundColor: Color(0xFF27AE60)));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text("AI Scan failed. Is GEMINI_API_KEY set?"),
+            backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -221,14 +467,18 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         .map((row) => {
               'name': (row['name'] as TextEditingController).text,
               'qty': (row['qty'] as TextEditingController).text,
-              'unit': row['unit'],
+              'unit': row['unit'] == 'Other...'
+                  ? (row['customUnit'] as TextEditingController).text
+                  : row['unit'],
             })
         .toList();
 
     final data = {
       'name': _nameController.text,
       'brand_name': _brandController.text,
-      'section_name': _selectedSection,
+      'section_name': _selectedSection == 'Other...'
+          ? _customSectionController.text
+          : _selectedSection,
       'ingredients': jsonEncode(ingredientsData),
       'process': _processController.text,
       'visibility': 'private',
@@ -262,7 +512,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
-      body: _isLoading
+      body: _isLoading || _sections.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : Form(
               key: _formKey,
@@ -289,11 +539,12 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                                       v!.isEmpty ? "Required" : null,
                                 ),
                                 const SizedBox(height: 16),
-                                _buildTextField(
+                                _buildAutocompleteField(
                                   controller: _brandController,
                                   label: "Brand / Source",
                                   hint: "Optional",
                                   icon: Icons.label_outline,
+                                  options: _availableBrands,
                                 ),
                                 const SizedBox(height: 16),
                                 _buildDropdown(
@@ -303,7 +554,22 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                                   items: _sections,
                                   onChanged: (v) =>
                                       setState(() => _selectedSection = v!),
+                                  onAddPressed: _showQuickAddSection,
                                 ),
+                                if (_selectedSection == 'Other...') ...[
+                                  const SizedBox(height: 12),
+                                  _buildTextField(
+                                    controller: _customSectionController,
+                                    label: "Custom Section Name",
+                                    hint: "e.g. Italian, Fast Food",
+                                    icon: Icons.edit_note,
+                                    validator: (v) =>
+                                        (_selectedSection == 'Other...' &&
+                                                (v == null || v.isEmpty))
+                                            ? "Required"
+                                            : null,
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -369,12 +635,10 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.cloud_upload_outlined),
+                    const Icon(Icons.save_outlined),
                     const SizedBox(width: 8),
                     Text(
-                      widget.recipe == null
-                          ? "PUBLISH RECIPE"
-                          : "UPDATE RECIPE",
+                      widget.recipe == null ? "SAVE RECIPE" : "UPDATE RECIPE",
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, letterSpacing: 1.2),
                     ),
@@ -442,6 +706,25 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         ),
         onPressed: () => Navigator.pop(context),
       ),
+      actions: [
+        Padding(
+          padding: const EdgeInsets.only(right: 8.0),
+          child: TextButton.icon(
+            onPressed: _scanWithAI,
+            icon: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
+            label: const Text("AI SCAN",
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12)),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.white24,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -524,6 +807,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     required IconData icon,
     required List<String> items,
     required void Function(String?) onChanged,
+    VoidCallback? onAddPressed,
   }) {
     return DropdownButtonFormField<String>(
       value: value,
@@ -533,6 +817,13 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       decoration: InputDecoration(
         labelText: label,
         prefixIcon: Icon(icon, size: 20),
+        suffixIcon: onAddPressed != null
+            ? IconButton(
+                icon: const Icon(Icons.add_circle_outline,
+                    color: Color(0xFFE74C3C), size: 22),
+                onPressed: onAddPressed,
+              )
+            : null,
         filled: true,
         fillColor: Colors.grey.shade50,
         border: OutlineInputBorder(
@@ -547,50 +838,136 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     );
   }
 
+  Widget _buildAutocompleteField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    required IconData icon,
+    required List<String> options,
+  }) {
+    return Autocomplete<String>(
+      initialValue: TextEditingValue(text: controller.text),
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<String>.empty();
+        }
+        return options.where((String option) {
+          return option
+              .toLowerCase()
+              .contains(textEditingValue.text.toLowerCase());
+        });
+      },
+      onSelected: (String selection) {
+        controller.text = selection;
+      },
+      fieldViewBuilder:
+          (context, fieldController, focusNode, onFieldSubmitted) {
+        // Keep the main controller in sync
+        fieldController.addListener(() {
+          controller.text = fieldController.text;
+        });
+        return _buildTextField(
+          controller: fieldController,
+          label: label,
+          hint: hint,
+          icon: icon,
+        );
+      },
+    );
+  }
+
   Widget _buildIngredientRow(int index, Map<String, dynamic> row) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade100),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 3,
-            child: _buildTextField(
-              controller: row['name'],
-              label: "Name",
-              hint: "Item",
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: _buildTextField(
-              controller: row['qty'],
-              label: "Qty",
-              hint: "0",
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: DropdownButtonFormField<String>(
-              value: row['unit'],
-              style: const TextStyle(fontSize: 12, color: Colors.black),
-              decoration: InputDecoration(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
-                border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Item #${index + 1}",
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade400)),
+              IconButton(
+                onPressed: () => _removeIngredientRow(index),
+                icon: const Icon(Icons.remove_circle_outline,
+                    color: Colors.redAccent, size: 20),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
               ),
-              items: _units
-                  .map((u) => DropdownMenuItem(value: u, child: Text(u)))
-                  .toList(),
-              onChanged: (v) => setState(() => row['unit'] = v),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _buildTextField(
+            controller: row['name'],
+            label: "Ingredient",
+            hint: "e.g. Extra Virgin Olive Oil",
+          ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: _buildTextField(
+                  controller: row['qty'],
+                  label: "Qty",
+                  hint: "0",
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                flex: 1,
+                child: DropdownButtonFormField<String>(
+                  value: row['unit'],
+                  isExpanded: true,
+                  style: const TextStyle(fontSize: 13, color: Colors.black),
+                  decoration: InputDecoration(
+                    labelText: "Unit",
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 16),
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: Colors.grey.shade200),
+                    ),
+                  ),
+                  items: _units
+                      .map((u) => DropdownMenuItem(
+                          value: u,
+                          child: Text(u, style: const TextStyle(fontSize: 13))))
+                      .toList(),
+                  onChanged: (v) => setState(() => row['unit'] = v),
+                ),
+              ),
+            ],
+          ),
+          if (row['unit'] == 'Other...') ...[
+            const SizedBox(height: 12),
+            _buildTextField(
+              controller: row['customUnit'],
+              label: "Custom Unit",
+              hint: "e.g. box, bottle",
+              icon: Icons.straighten,
+              validator: (v) =>
+                  (row['unit'] == 'Other...' && (v == null || v.isEmpty))
+                      ? "Required"
+                      : null,
             ),
-          ),
-          IconButton(
-            onPressed: () => _removeIngredientRow(index),
-            icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
-          ),
+          ],
         ],
       ),
     );
