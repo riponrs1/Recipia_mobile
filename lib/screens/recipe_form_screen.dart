@@ -1,13 +1,15 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../api_service.dart';
 import '../models/recipe.dart';
+import '../sync_provider.dart';
 
 class RecipeFormScreen extends StatefulWidget {
   final Recipe? recipe;
@@ -21,14 +23,12 @@ class RecipeFormScreen extends StatefulWidget {
 class _RecipeFormScreenState extends State<RecipeFormScreen> {
   final _apiService = ApiService();
   bool _isLoading = false;
-  int _currentStep = 0;
-
-  // Form Key (Main one for the whole process)
   final _formKey = GlobalKey<FormState>();
 
   // Basic Info
   final _nameController = TextEditingController();
   final _brandController = TextEditingController();
+  late String _selectedSection;
 
   // Photos
   File? _itemPhoto;
@@ -36,14 +36,12 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   final _picker = ImagePicker();
 
   // Ingredients
-  // List of maps {name: controller, qty: controller, unit: value}
   final List<Map<String, dynamic>> _ingredientsList = [];
 
   // Process & Visibility
   final _processController = TextEditingController();
   String _visibility = 'private';
 
-  late String _selectedSection;
   final List<String> _sections = [
     'Hot Kitchen',
     'Bakery',
@@ -53,6 +51,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     'Cold/Salad',
     'Pizza'
   ];
+
   final List<String> _units = [
     'g',
     'kg',
@@ -71,8 +70,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   void initState() {
     super.initState();
     _selectedSection = _sections.first;
-
-    // Default ingredients row
     _addIngredientRow();
 
     if (widget.recipe != null) {
@@ -82,7 +79,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         _selectedSection = widget.recipe!.sectionName;
       }
 
-      // Populate Ingredients
       if (widget.recipe!.ingredients.isNotEmpty) {
         try {
           final decoded = jsonDecode(widget.recipe!.ingredients);
@@ -92,10 +88,9 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
               _addIngredientRow(
                   name: item['name'] ?? '',
                   qty: (item['qty'] ?? '').toString(),
-                  unit: item['unit'] ?? '');
+                  unit: item['unit'] ?? 'g');
             }
           }
-          if (_ingredientsList.isEmpty) _addIngredientRow();
         } catch (e) {
           _ingredientsList.clear();
           _addIngredientRow(name: widget.recipe!.ingredients);
@@ -131,7 +126,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       final tempDir = await getTemporaryDirectory();
       final targetPath =
           "${tempDir.path}/${DateTime.now().millisecondsSinceEpoch}.jpg";
-
       var result = await FlutterImageCompress.compressAndGetFile(
         file.absolute.path,
         targetPath,
@@ -139,7 +133,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         minWidth: 1200,
         minHeight: 1200,
       );
-
       return result != null ? File(result.path) : null;
     } catch (e) {
       return null;
@@ -149,21 +142,31 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   Future<void> _pickImage(bool isItem) async {
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (BuildContext context) {
         return SafeArea(
-          child: Wrap(
-            children: <Widget>[
-              ListTile(
-                leading: const Icon(Icons.photo_library),
-                title: const Text('Gallery'),
-                onTap: () => Navigator.of(context).pop(ImageSource.gallery),
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('Camera'),
-                onTap: () => Navigator.of(context).pop(ImageSource.camera),
-              ),
-            ],
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Select Source",
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildSourceOption(context, Icons.photo_library, "Gallery",
+                        ImageSource.gallery),
+                    _buildSourceOption(context, Icons.camera_alt, "Camera",
+                        ImageSource.camera),
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -172,38 +175,10 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     if (source == null) return;
 
     try {
-      bool granted = false;
-      if (Platform.isAndroid) {
-        if (source == ImageSource.camera) {
-          final status = await Permission.camera.request();
-          granted = status.isGranted;
-        } else {
-          Map<Permission, PermissionStatus> statuses = await [
-            Permission.photos,
-            Permission.storage,
-          ].request();
-          if ((statuses[Permission.photos]?.isGranted ?? false) ||
-              (statuses[Permission.storage]?.isGranted ?? false)) {
-            granted = true;
-          }
-        }
-      } else {
-        final status = source == ImageSource.camera
-            ? await Permission.camera.request()
-            : await Permission.photos.request();
-        granted = status.isGranted || status.isLimited;
-      }
-
-      if (!granted && Platform.isAndroid && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Permission not granted. Action might fail.')));
-      }
-
       final XFile? image = await _picker.pickImage(source: source);
       if (image != null) {
         File originalFile = File(image.path);
         File? compressedFile = await _compressImage(originalFile);
-
         setState(() {
           if (isItem) {
             _itemPhoto = compressedFile ?? originalFile;
@@ -220,24 +195,28 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     }
   }
 
+  Widget _buildSourceOption(
+      BuildContext context, IconData icon, String label, ImageSource source) {
+    return InkWell(
+      onTap: () => Navigator.of(context).pop(source),
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(16)),
+            child: Icon(icon, color: const Color(0xFFE74C3C), size: 30),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fix the errors in the form')),
-      );
-      return;
-    }
-
-    bool hasValidIngredient = _ingredientsList.any(
-        (row) => (row['name'] as TextEditingController).text.trim().isNotEmpty);
-
-    if (!hasValidIngredient) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one ingredient')),
-      );
-      return;
-    }
-
+    if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
     final ingredientsData = _ingredientsList
@@ -267,17 +246,14 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     }
 
     if (!mounted) return;
-
     setState(() => _isLoading = false);
 
     if (error == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Recipe saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
       Navigator.of(context).pop(true);
+      try {
+        final syncProvider = Provider.of<SyncProvider>(context, listen: false);
+        syncProvider.triggerAutoBackupIfEnabled();
+      } catch (e) {}
     } else {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(error)));
@@ -286,399 +262,348 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return PopScope(
-      canPop: false,
-      onPopInvoked: (didPop) async {
-        if (didPop) return;
-        if (_currentStep > 0) {
-          setState(() => _currentStep--);
-        } else {
-          final shouldPop = await _confirmDiscard();
-          if (shouldPop && mounted) Navigator.of(context).pop();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF5F7FA),
-        appBar: AppBar(
-          title: Text(widget.recipe == null ? 'Create Recipe' : 'Edit Recipe'),
-        ),
-        body: _isLoading
-            ? const Center(child: CircularProgressIndicator())
-            : Form(
-                key: _formKey,
-                child: Stepper(
-                  type: StepperType.horizontal,
-                  currentStep: _currentStep,
-                  elevation: 0,
-                  onStepContinue: () {
-                    // Step 0: Info Validation
-                    if (_currentStep == 0) {
-                      if (_nameController.text.trim().isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Please enter a recipe name')),
-                        );
-                        return;
-                      }
-
-                      setState(() => _currentStep++);
-                    }
-                    // Step 1: Items Validation
-                    else if (_currentStep == 1) {
-                      bool hasValid = _ingredientsList.any((row) =>
-                          (row['name'] as TextEditingController)
-                              .text
-                              .trim()
-                              .isNotEmpty);
-                      if (!hasValid) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content:
-                                  Text('Please add at least one ingredient')),
-                        );
-                        return;
-                      }
-                      setState(() => _currentStep++);
-                    } else {
-                      _submit();
-                    }
-                  },
-                  onStepCancel: () async {
-                    if (_currentStep > 0) {
-                      setState(() => _currentStep--);
-                    } else {
-                      final shouldPop = await _confirmDiscard();
-                      if (shouldPop && context.mounted) {
-                        Navigator.of(context).pop();
-                      }
-                    }
-                  },
-                  controlsBuilder: (context, details) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 24.0),
-                      child: Row(
+    return Scaffold(
+      backgroundColor: const Color(0xFFFAFAFA),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Form(
+              key: _formKey,
+              child: CustomScrollView(
+                slivers: [
+                  _buildAppBar(),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: FilledButton(
-                              onPressed: details.onStepContinue,
-                              style: FilledButton.styleFrom(
-                                  backgroundColor: const Color(0xFFE74C3C),
-                                  minimumSize: const Size(0, 48)),
-                              child: Text(_currentStep == 2 ? 'FINISH' : 'NEXT',
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.bold)),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: OutlinedButton(
-                              onPressed: details.onStepCancel,
-                              style: OutlinedButton.styleFrom(
-                                  minimumSize: const Size(0, 48)),
-                              child:
-                                  Text(_currentStep == 0 ? 'CANCEL' : 'BACK'),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                  steps: [
-                    // Step 1: Info
-                    Step(
-                      title: const Text('Info'),
-                      isActive: _currentStep >= 0,
-                      state: _currentStep > 0
-                          ? StepState.complete
-                          : StepState.editing,
-                      content: Column(
-                        children: [
-                          TextFormField(
-                            controller: _nameController,
-                            decoration: const InputDecoration(
-                              labelText: 'Recipe Name',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.book),
-                            ),
-                            validator: (v) => v!.trim().isEmpty
-                                ? 'Recipe name is required'
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _brandController,
-                            decoration: const InputDecoration(
-                              labelText: 'Brand (Optional)',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.branding_watermark),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          DropdownButtonFormField<String>(
-                            value: _selectedSection,
-                            decoration: const InputDecoration(
-                              labelText: 'Section',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.category),
-                            ),
-                            items: _sections
-                                .map((s) =>
-                                    DropdownMenuItem(value: s, child: Text(s)))
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _selectedSection = v!),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildPhotoPicker(
-                              title: 'Item Photo',
-                              file: _itemPhoto,
-                              existingUrl: widget.recipe?.itemPhoto,
-                              isItem: true),
-                          const SizedBox(height: 16),
-                          _buildPhotoPicker(
-                              title: 'Recipe Photo',
-                              file: _recipePhoto,
-                              existingUrl: widget.recipe?.recipePhoto,
-                              isItem: false),
-                        ],
-                      ),
-                    ),
-
-                    // Step 2: Ingredients
-                    Step(
-                      title: const Text('Items'),
-                      isActive: _currentStep >= 1,
-                      state: _currentStep > 1
-                          ? StepState.complete
-                          : StepState.editing,
-                      content: Column(
-                        children: [
-                          ..._ingredientsList.asMap().entries.map((entry) {
-                            int index = entry.key;
-                            Map<String, dynamic> row = entry.value;
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 12),
-                              elevation: 2,
-                              color: Colors.grey.shade50,
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side:
-                                      BorderSide(color: Colors.grey.shade200)),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Column(
-                                  children: [
-                                    // Row 1: Name and Delete Link
-                                    Row(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Expanded(
-                                          child: TextFormField(
-                                            controller: row['name'],
-                                            decoration: const InputDecoration(
-                                              labelText: 'Ingredient Name',
-                                              prefixIcon:
-                                                  Icon(Icons.restaurant),
-                                              border: OutlineInputBorder(),
-                                              contentPadding:
-                                                  EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 12),
-                                            ),
-                                            validator: (v) =>
-                                                v == null || v.trim().isEmpty
-                                                    ? 'Required'
-                                                    : null,
-                                          ),
-                                        ),
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(top: 8.0),
-                                          child: IconButton(
-                                            icon: const Icon(Icons.delete,
-                                                color: Colors.red),
-                                            onPressed: () =>
-                                                _removeIngredientRow(index),
-                                            tooltip: 'Remove',
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    // Row 2: Quantity and Unit
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: TextFormField(
-                                            controller: row['qty'],
-                                            keyboardType: TextInputType.number,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Quantity',
-                                              border: OutlineInputBorder(),
-                                              contentPadding:
-                                                  EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 12),
-                                            ),
-                                            validator: (v) =>
-                                                v == null || v.trim().isEmpty
-                                                    ? 'Required'
-                                                    : null,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child:
-                                              DropdownButtonFormField<String>(
-                                            value: row['unit'],
-                                            isExpanded: true,
-                                            decoration: const InputDecoration(
-                                              labelText: 'Unit',
-                                              border: OutlineInputBorder(),
-                                              contentPadding:
-                                                  EdgeInsets.symmetric(
-                                                      horizontal: 12,
-                                                      vertical: 12),
-                                            ),
-                                            items: _units
-                                                .map((u) => DropdownMenuItem(
-                                                    value: u, child: Text(u)))
-                                                .toList(),
-                                            onChanged: (v) =>
-                                                setState(() => row['unit'] = v),
-                                          ),
-                                        ),
-                                        // Balance the delete button space from above
-                                        const SizedBox(width: 48),
-                                      ],
-                                    ),
-                                  ],
+                          _buildSectionCard(
+                            title: "Basic Details",
+                            icon: Icons.info_outline,
+                            child: Column(
+                              children: [
+                                _buildTextField(
+                                  controller: _nameController,
+                                  label: "Recipe Title",
+                                  hint: "e.g. Grandma's Apple Pie",
+                                  icon: Icons.restaurant_menu,
+                                  validator: (v) =>
+                                      v!.isEmpty ? "Required" : null,
                                 ),
-                              ),
-                            );
-                          }),
-                          const SizedBox(height: 8),
-                          OutlinedButton.icon(
-                            onPressed: _addIngredientRow,
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Ingredient'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(double.infinity, 50),
-                              backgroundColor: Colors.white,
-                              foregroundColor: const Color(0xFFE74C3C),
-                              side: const BorderSide(color: Color(0xFFE74C3C)),
+                                const SizedBox(height: 16),
+                                _buildTextField(
+                                  controller: _brandController,
+                                  label: "Brand / Source",
+                                  hint: "Optional",
+                                  icon: Icons.label_outline,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildDropdown(
+                                  value: _selectedSection,
+                                  label: "Section",
+                                  icon: Icons.category_outlined,
+                                  items: _sections,
+                                  onChanged: (v) =>
+                                      setState(() => _selectedSection = v!),
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-
-                    // Step 3: Process
-                    Step(
-                      title: const Text('Done'),
-                      isActive: _currentStep >= 2,
-                      state: StepState.editing,
-                      content: Column(
-                        children: [
-                          TextFormField(
-                            controller: _processController,
-                            decoration: const InputDecoration(
-                              labelText: 'Process / Method',
-                              alignLabelWithHint: true,
-                              border: OutlineInputBorder(),
-                              hintText: 'Describe how to prepare this dish...',
+                          const SizedBox(height: 20),
+                          _buildSectionCard(
+                            title: "Ingredients",
+                            icon: Icons.list_alt_rounded,
+                            child: Column(
+                              children: [
+                                ..._ingredientsList.asMap().entries.map(
+                                    (e) => _buildIngredientRow(e.key, e.value)),
+                                const SizedBox(height: 12),
+                                TextButton.icon(
+                                  onPressed: () => _addIngredientRow(),
+                                  icon: const Icon(Icons.add_circle_outline),
+                                  label: const Text("Add Ingredient"),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: const Color(0xFFE74C3C)),
+                                ),
+                              ],
                             ),
-                            minLines: 3,
-                            maxLines: 5,
-                            validator: (v) => v!.trim().isEmpty
-                                ? 'Instructions are required'
-                                : null,
                           ),
-                          const SizedBox(height: 16),
-                          DropdownButtonFormField<String>(
-                            value: _visibility,
-                            decoration: const InputDecoration(
-                              labelText: 'Visibility',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.visibility),
+                          const SizedBox(height: 20),
+                          _buildSectionCard(
+                            title: "Instructions",
+                            icon: Icons.menu_book_outlined,
+                            child: Column(
+                              children: [
+                                _buildTextField(
+                                  controller: _processController,
+                                  label: "Cooking Process",
+                                  hint: "Step by step instructions...",
+                                  maxLines: 8,
+                                  validator: (v) =>
+                                      v!.isEmpty ? "Required" : null,
+                                ),
+                                const SizedBox(height: 16),
+                                _buildDropdown(
+                                  value: _visibility,
+                                  label: "Visibility",
+                                  icon: Icons.lock_outline,
+                                  items: ['public', 'friends', 'private'],
+                                  onChanged: (v) =>
+                                      setState(() => _visibility = v!),
+                                ),
+                              ],
                             ),
-                            items: const [
-                              DropdownMenuItem(
-                                  value: 'public', child: Text('Public')),
-                              DropdownMenuItem(
-                                  value: 'friends',
-                                  child: Text('Friends Only')),
-                              DropdownMenuItem(
-                                  value: 'private', child: Text('Private')),
-                            ],
-                            onChanged: (v) => setState(() => _visibility = v!),
                           ),
                           const SizedBox(height: 100),
                         ],
                       ),
                     ),
+                  ),
+                ],
+              ),
+            ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      floatingActionButton: _isLoading
+          ? null
+          : Container(
+              height: 56,
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              child: ElevatedButton(
+                onPressed: _submit,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFE74C3C),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  elevation: 4,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.cloud_upload_outlined),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.recipe == null
+                          ? "PUBLISH RECIPE"
+                          : "UPDATE RECIPE",
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                    ),
                   ],
                 ),
               ),
-      ),
+            ),
     );
   }
 
-  Widget _buildPhotoPicker(
-      {required String title,
-      File? file,
-      String? existingUrl,
-      required bool isItem}) {
-    return InkWell(
-      onTap: () => _pickImage(isItem),
-      child: Container(
-        height: 150,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade100,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
-          image: file != null
-              ? DecorationImage(image: FileImage(file), fit: BoxFit.cover)
-              : existingUrl != null
-                  ? DecorationImage(
-                      image: NetworkImage(ApiService.getImageUrl(existingUrl)),
-                      fit: BoxFit.cover)
-                  : null,
+  Widget _buildAppBar() {
+    ImageProvider? image;
+    if (_recipePhoto != null) {
+      image = FileImage(_recipePhoto!);
+    } else if (widget.recipe?.recipePhoto != null) {
+      image = CachedNetworkImageProvider(
+          ApiService.getImageUrl(widget.recipe!.recipePhoto!));
+    }
+
+    return SliverAppBar(
+      expandedHeight: 250,
+      pinned: true,
+      backgroundColor: const Color(0xFFE74C3C),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (image != null)
+              Image(image: image, fit: BoxFit.cover)
+            else
+              Container(
+                color: Colors.grey.shade200,
+                child: Icon(Icons.restaurant,
+                    size: 80, color: Colors.grey.shade400),
+              ),
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.3),
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.5),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: 20,
+              right: 20,
+              child: FloatingActionButton.small(
+                onPressed: () => _pickImage(false),
+                backgroundColor: Colors.white,
+                child: const Icon(Icons.camera_alt, color: Color(0xFFE74C3C)),
+              ),
+            ),
+          ],
         ),
-        child: file == null && existingUrl == null
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.camera_alt, size: 40, color: Colors.grey.shade400),
-                  const SizedBox(height: 8),
-                  Text(title, style: TextStyle(color: Colors.grey.shade600)),
-                ],
-              )
-            : null,
+      ),
+      leading: IconButton(
+        icon: const CircleAvatar(
+          backgroundColor: Colors.white24,
+          child: Icon(Icons.arrow_back, color: Colors.white),
+        ),
+        onPressed: () => Navigator.pop(context),
       ),
     );
   }
 
-  Future<bool> _confirmDiscard() async {
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Discard Changes?'),
-            content:
-                const Text('Are you sure you want to discard your changes?'),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel')),
-              TextButton(
-                  onPressed: () => Navigator.pop(context, true),
-                  child: const Text('Discard',
-                      style: TextStyle(color: Colors.red))),
+  Widget _buildSectionCard(
+      {required String title, required IconData icon, required Widget child}) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 20, color: const Color(0xFFE74C3C)),
+              const SizedBox(width: 10),
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Color(0xFF2D3748))),
             ],
           ),
-        ) ??
-        false;
+          const Divider(height: 30),
+          child,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required String hint,
+    IconData? icon,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      validator: validator,
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        prefixIcon: icon != null ? Icon(icon, size: 20) : null,
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE74C3C)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDropdown({
+    required String value,
+    required String label,
+    required IconData icon,
+    required List<String> items,
+    required void Function(String?) onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      items:
+          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      onChanged: onChanged,
+      decoration: InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 20),
+        filled: true,
+        fillColor: Colors.grey.shade50,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIngredientRow(int index, Map<String, dynamic> row) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 3,
+            child: _buildTextField(
+              controller: row['name'],
+              label: "Name",
+              hint: "Item",
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: _buildTextField(
+              controller: row['qty'],
+              label: "Qty",
+              hint: "0",
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            flex: 2,
+            child: DropdownButtonFormField<String>(
+              value: row['unit'],
+              style: const TextStyle(fontSize: 12, color: Colors.black),
+              decoration: InputDecoration(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              items: _units
+                  .map((u) => DropdownMenuItem(value: u, child: Text(u)))
+                  .toList(),
+              onChanged: (v) => setState(() => row['unit'] = v),
+            ),
+          ),
+          IconButton(
+            onPressed: () => _removeIngredientRow(index),
+            icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
   }
 }
