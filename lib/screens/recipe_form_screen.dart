@@ -38,9 +38,8 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   // Ingredients
   final List<Map<String, dynamic>> _ingredientsList = [];
 
-  // Process & Visibility
+  // Process
   final _processController = TextEditingController();
-  String _visibility = 'private';
 
   final List<String> _sections = [
     'Hot Kitchen',
@@ -98,7 +97,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       }
 
       _processController.text = widget.recipe!.process;
-      _visibility = widget.recipe!.visibility ?? 'private';
     }
   }
 
@@ -233,7 +231,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       'section_name': _selectedSection,
       'ingredients': jsonEncode(ingredientsData),
       'process': _processController.text,
-      'visibility': _visibility,
+      'visibility': 'private',
     };
 
     String? error;
@@ -341,15 +339,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                                   maxLines: 8,
                                   validator: (v) =>
                                       v!.isEmpty ? "Required" : null,
-                                ),
-                                const SizedBox(height: 16),
-                                _buildDropdown(
-                                  value: _visibility,
-                                  label: "Visibility",
-                                  icon: Icons.lock_outline,
-                                  items: ['public', 'friends', 'private'],
-                                  onChanged: (v) =>
-                                      setState(() => _visibility = v!),
                                 ),
                               ],
                             ),
