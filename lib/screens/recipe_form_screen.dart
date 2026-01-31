@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../gemini_service.dart';
+import '../services/ocr_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
@@ -352,58 +352,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     }
   }
 
-  Future<bool> _ensureGeminiApiKey() async {
-    final gemini = GeminiService();
-    String? key = await gemini.getApiKey();
-    if (key != null && key.isNotEmpty) return true;
-
-    final controller = TextEditingController();
-    final newKey = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Gemini API Key Required'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-                'To use free AI scanning, you need a Google Gemini API Key.'),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'Paste your API Key here',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Get one for free at: aistudio.google.com',
-              style: TextStyle(fontSize: 10, color: Colors.blue),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, controller.text),
-            child: const Text('Save Key'),
-          ),
-        ],
-      ),
-    );
-
-    if (newKey != null && newKey.trim().isNotEmpty) {
-      await gemini.saveApiKey(newKey.trim());
-      return true;
-    }
-    return false;
-  }
-
   Future<void> _scanWithAI() async {
-    if (!await _ensureGeminiApiKey()) return;
-
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
@@ -448,12 +397,12 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
 
       setState(() => _isLoading = true);
 
-      final result = await GeminiService().analyzeRecipeImage(image.path);
+      final result = await OcrService().scanRecipe(image.path);
 
       if (!mounted) return;
       setState(() => _isLoading = false);
 
-      if (result != null) {
+      if (result.isNotEmpty) {
         setState(() {
           _nameController.text = result['name'] ?? _nameController.text;
           _brandController.text = result['brand_name'] ?? _brandController.text;
@@ -495,11 +444,11 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         });
 
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Form auto-filled! Please check and save."),
+            content: Text("Recipe text scanned! Please review details."),
             backgroundColor: Color(0xFF27AE60)));
       } else {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("AI Scan failed. Check your API Key or connection."),
+            content: Text("Could not read text from image."),
             backgroundColor: Colors.red));
       }
     } catch (e) {
@@ -577,6 +526,8 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          _buildAiScanCard(),
+                          const SizedBox(height: 20),
                           _buildSectionCard(
                             title: "Basic Details",
                             icon: Icons.info_outline,
@@ -759,23 +710,11 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
-        Padding(
-          padding: const EdgeInsets.only(right: 8.0),
-          child: TextButton.icon(
-            onPressed: _scanWithAI,
-            icon: const Icon(Icons.auto_awesome, color: Colors.white, size: 18),
-            label: const Text("AI SCAN",
-                style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 12)),
-            style: TextButton.styleFrom(
-              backgroundColor: Colors.white24,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-            ),
+        if (widget.recipe != null)
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.white),
+            onPressed: () {}, // Handled in detail screen generally
           ),
-        ),
       ],
     );
   }
@@ -813,6 +752,70 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           const Divider(height: 30),
           child,
         ],
+      ),
+    );
+  }
+
+  Widget _buildAiScanCard() {
+    return GestureDetector(
+      onTap: _scanWithAI,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF4F46E5).withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child:
+                  const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 16),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Auto-Fill with AI",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    "Scan a photo to instantly add ingredients",
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.arrow_forward_ios_rounded,
+                color: Colors.white70, size: 16),
+          ],
+        ),
       ),
     );
   }
