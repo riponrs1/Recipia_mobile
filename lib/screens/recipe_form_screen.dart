@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/ocr_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
@@ -352,114 +351,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     }
   }
 
-  Future<void> _scanWithAI() async {
-    final ImageSource? source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (BuildContext context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 20),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text("Scan Paper Recipe",
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                const SizedBox(height: 8),
-                const Text(
-                    "Take a photo of your handwritten recipe to auto-fill",
-                    style: TextStyle(color: Colors.grey, fontSize: 12)),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildSourceOption(context, Icons.photo_library, "Gallery",
-                        ImageSource.gallery),
-                    _buildSourceOption(context, Icons.camera_alt, "Camera",
-                        ImageSource.camera),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-
-    if (source == null) return;
-
-    try {
-      final XFile? image = await _picker.pickImage(source: source);
-      if (image == null) return;
-
-      setState(() => _isLoading = true);
-
-      final result = await OcrService().scanRecipe(image.path);
-
-      if (!mounted) return;
-      setState(() => _isLoading = false);
-
-      if (result.isNotEmpty) {
-        setState(() {
-          _nameController.text = result['name'] ?? _nameController.text;
-          _brandController.text = result['brand_name'] ?? _brandController.text;
-
-          if (result['section_name'] != null) {
-            String section = result['section_name'];
-            if (_sections.contains(section)) {
-              _selectedSection = section;
-            } else {
-              _selectedSection = 'Other...';
-              _customSectionController.text = section;
-            }
-          }
-
-          if (result['ingredients'] is List) {
-            _ingredientsList.clear();
-            for (var item in result['ingredients']) {
-              String unit = item['unit'] ?? 'g';
-              if (_units.contains(unit)) {
-                _addIngredientRow(
-                  name: item['name'] ?? '',
-                  qty: (item['qty'] ?? '').toString(),
-                  unit: unit,
-                );
-              } else {
-                _addIngredientRow(
-                  name: item['name'] ?? '',
-                  qty: (item['qty'] ?? '').toString(),
-                  unit: 'Other...',
-                  customUnit: unit,
-                );
-              }
-            }
-            if (_ingredientsList.isEmpty) _addIngredientRow();
-          }
-
-          _processController.text =
-              result['process'] ?? _processController.text;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Recipe text scanned! Please review details."),
-            backgroundColor: Color(0xFF27AE60)));
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text("Could not read text from image."),
-            backgroundColor: Colors.red));
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-      }
-    }
-  }
-
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
@@ -526,8 +417,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildAiScanCard(),
-                          const SizedBox(height: 20),
                           _buildSectionCard(
                             title: "Basic Details",
                             icon: Icons.info_outline,
@@ -752,70 +641,6 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           const Divider(height: 30),
           child,
         ],
-      ),
-    );
-  }
-
-  Widget _buildAiScanCard() {
-    return GestureDetector(
-      onTap: _scanWithAI,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6366F1), Color(0xFF4F46E5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF4F46E5).withOpacity(0.3),
-              blurRadius: 12,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child:
-                  const Icon(Icons.auto_awesome, color: Colors.white, size: 24),
-            ),
-            const SizedBox(width: 16),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Auto-Fill with AI",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  SizedBox(height: 4),
-                  Text(
-                    "Scan a photo to instantly add ingredients",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.arrow_forward_ios_rounded,
-                color: Colors.white70, size: 16),
-          ],
-        ),
       ),
     );
   }
