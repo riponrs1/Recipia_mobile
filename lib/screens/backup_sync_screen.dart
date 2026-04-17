@@ -84,7 +84,7 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                           child: ElevatedButton.icon(
                             onPressed: () => syncProvider.signIn(),
                             icon: Image.network(
-                              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png',
+                              'https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png',
                               height: 20,
                             ),
                             label: const Text("Connect Google Drive",
@@ -273,6 +273,60 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 16),
+                          // Transition / Migration specific button
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _isSyncing
+                                  ? null
+                                  : () async {
+                                      setState(() => _isSyncing = true);
+                                      final success = await syncProvider
+                                          .forceFullCloudBackup();
+                                      setState(() => _isSyncing = false);
+                                      if (success && mounted) {
+                                        showDialog(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: const Icon(
+                                                Icons.verified_user_rounded,
+                                                color: Colors.green,
+                                                size: 48),
+                                            content: const Text(
+                                              "Comprehensive Data Migration Complete.\n\nYour entire local database and media files are now safely synchronized with Google Drive. You can now safely transition to local-only usage.",
+                                              textAlign: TextAlign.center,
+                                            ),
+                                            actions: [
+                                              TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(ctx),
+                                                  child: const Text("Got it"))
+                                            ],
+                                          ),
+                                        );
+                                      }
+                                    },
+                              icon: const Icon(Icons.security_rounded),
+                              label: const Text("Full Migration Sync",
+                                  style:
+                                      TextStyle(fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.teal.shade700,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            "Ensures ALL local data is in the cloud before backend removal.",
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
                       ],
                     ),
                 ],
@@ -330,8 +384,9 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
       setState(() => _isSyncing = true);
       final success = await syncProvider.restoreData();
       setState(() => _isSyncing = false);
+      if (!mounted) return;
 
-      if (success && context.mounted) {
+      if (success) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Restoration successful!'),
             backgroundColor: Colors.green));

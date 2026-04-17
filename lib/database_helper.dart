@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 
@@ -31,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 7,
+      version: 8,
       onCreate: (db, version) async {
         await _createTables(db);
       },
@@ -57,12 +59,16 @@ class DatabaseHelper {
           try {
             await db.execute(
                 'ALTER TABLE recipes ADD COLUMN is_pending INTEGER DEFAULT 0');
-          } catch (e) {}
+          } catch (e) {
+            debugPrint('Error adding column is_pending: $e');
+          }
         }
         if (oldVersion < 4) {
           try {
             await db.execute('ALTER TABLE recipes ADD COLUMN deleted_at TEXT');
-          } catch (e) {}
+          } catch (e) {
+            debugPrint('Error adding column deleted_at: $e');
+          }
         }
         if (oldVersion < 5) {
           await db.execute('''
@@ -83,13 +89,31 @@ class DatabaseHelper {
             // Optionally unlock existing defaults if requested
             await db.update('recipe_sections', {'is_system': 0},
                 where: 'is_system = 1 AND server_id IS NULL');
-          } catch (e) {}
+          } catch (e) {
+            debugPrint('Error upgrading sections table (v6): $e');
+          }
         }
         if (oldVersion < 7) {
           try {
             await db.execute(
                 'ALTER TABLE recipe_sections ADD COLUMN sort_order INTEGER DEFAULT 0');
-          } catch (e) {}
+          } catch (e) {
+            debugPrint('Error adding column sort_order: $e');
+          }
+        }
+        if (oldVersion < 8) {
+          // Safety check for pending_sync which might have been missed in v7
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS pending_sync(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              action TEXT,
+              target_id INTEGER,
+              data TEXT,
+              item_photo_path TEXT,
+              recipe_photo_path TEXT,
+              created_at TEXT
+            )
+          ''');
         }
       },
     );
@@ -137,6 +161,17 @@ class DatabaseHelper {
         is_system INTEGER DEFAULT 0,
         icon TEXT,
         sort_order INTEGER DEFAULT 0,
+        created_at TEXT
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE pending_sync(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        action TEXT,
+        target_id INTEGER,
+        data TEXT,
+        item_photo_path TEXT,
+        recipe_photo_path TEXT,
         created_at TEXT
       )
     ''');
@@ -351,5 +386,21 @@ class DatabaseHelper {
     final res = await db.rawQuery(
         'SELECT DISTINCT brand_name FROM recipes WHERE brand_name IS NOT NULL AND brand_name != "" ORDER BY brand_name ASC');
     return res.map((r) => r['brand_name'] as String).toList();
+  }
+
+  Future<void> importDatabase(String sourcePath) async {
+    // 1. Close current connection
+    await closeDatabase();
+
+    // 2. Get target path
+    final dbDir = await getDatabasesPath();
+    final targetPath = join(dbDir, 'recipia_offline.db');
+
+    // 3. Copy file (overwrite)
+    final sourceFile = File(sourcePath);
+    await sourceFile.copy(targetPath);
+
+    // 4. Re-init connection
+    _database = await _initDatabase();
   }
 }

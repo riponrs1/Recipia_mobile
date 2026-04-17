@@ -323,6 +323,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
                                     if (confirm == true) {
                                       final error = await _apiService
                                           .deleteIngredient(ingredient.id);
+                                      if (!mounted) return;
                                       if (error == null) {
                                         _loadIngredients();
                                       } else {

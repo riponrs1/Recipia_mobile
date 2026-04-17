@@ -75,7 +75,9 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
           });
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error loading sections in recipe list: $e');
+    }
   }
 
   void _extractSectionsFromRecipes() {
@@ -97,7 +99,9 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
           if (_allRecipes.isNotEmpty) _filterRecipes();
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error fetching current user in recipe list: $e');
+    }
   }
 
   Future<void> _loadRecipes() async {
@@ -204,11 +208,11 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
       elevation: 0,
       backgroundColor: Colors.white,
       stretch: true,
-      flexibleSpace: FlexibleSpaceBar(
-        stretchModes: const [StretchMode.zoomBackground],
+      flexibleSpace: const FlexibleSpaceBar(
+        stretchModes: [StretchMode.zoomBackground],
         centerTitle: false,
-        titlePadding: const EdgeInsetsDirectional.only(start: 16, bottom: 16),
-        title: const Text(
+        titlePadding: EdgeInsetsDirectional.only(start: 16, bottom: 16),
+        title: Text(
           'Recipia',
           style: TextStyle(
             color: Color(0xFF1E293B),
@@ -222,8 +226,8 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
         Padding(
           padding: const EdgeInsets.only(right: 8.0),
           child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF1F5F9),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF1F5F9),
               shape: BoxShape.circle,
             ),
             child: IconButton(
@@ -635,8 +639,8 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
               color: Color(0xFFF1F5F9),
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.flatware_rounded,
-                size: 80, color: const Color(0xFFCBD5E1)),
+            child: const Icon(Icons.flatware_rounded,
+                size: 80, color: Color(0xFFCBD5E1)),
           ),
           const SizedBox(height: 24),
           const Text(
@@ -647,11 +651,11 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                 color: Color(0xFF1E293B)),
           ),
           const SizedBox(height: 12),
-          Text(
+          const Text(
             'Time to share your culinary secrets!\nCreate your first masterpiece today.',
             textAlign: TextAlign.center,
-            style: const TextStyle(
-                fontSize: 15, color: Color(0xFF64748B), height: 1.5),
+            style:
+                TextStyle(fontSize: 15, color: Color(0xFF64748B), height: 1.5),
           ),
           const SizedBox(height: 30),
           ElevatedButton(

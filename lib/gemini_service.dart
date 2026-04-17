@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'database_helper.dart';
 
@@ -25,7 +26,7 @@ class GeminiService {
 
       final imageBytes = await File(imagePath).readAsBytes();
 
-      final prompt = """
+      const prompt = """
       Analyze this image of a handwritten or printed recipe. Extract the following information into a structured JSON object:
       - name: The title of the recipe
       - brand_name: The brand or source (or null if not found)
@@ -54,7 +55,7 @@ class GeminiService {
 
       return null;
     } catch (e) {
-      print('Gemini Service Error: $e');
+      debugPrint('Gemini Service Error: $e');
       rethrow;
     }
   }

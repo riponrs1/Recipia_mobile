@@ -38,6 +38,7 @@ class _TrashScreenState extends State<TrashScreen> {
     // Sync change to cloud
     syncProvider.triggerAutoBackupIfEnabled();
 
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Recipe restored!')),
     );
@@ -67,6 +68,7 @@ class _TrashScreenState extends State<TrashScreen> {
       await _apiService.deleteRecipe(id, permanent: true);
 
       // Sync change to cloud
+      if (!mounted) return;
       final syncProvider = Provider.of<SyncProvider>(context, listen: false);
       syncProvider.triggerAutoBackupIfEnabled();
 

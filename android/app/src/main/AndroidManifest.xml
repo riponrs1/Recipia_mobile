@@ -1,13 +1,15 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
 
     <application
         android:label="Recipia"
         android:name="${applicationName}"
         android:usesCleartextTraffic="true"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:requestLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true">
 
         <activity
             android:name=".MainActivity"

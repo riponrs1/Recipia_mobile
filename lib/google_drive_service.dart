@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:googleapis/drive/v3.dart' as drive;
@@ -22,7 +23,7 @@ class GoogleDriveService {
       _currentUser = await _googleSignIn.signIn();
       return _currentUser != null;
     } catch (e) {
-      print('Google Sign-In Error: $e');
+      debugPrint('Google Sign-In Error: $e');
       return false;
     }
   }
@@ -32,7 +33,7 @@ class GoogleDriveService {
       _currentUser = await _googleSignIn.signInSilently();
       return _currentUser != null;
     } catch (e) {
-      print('Google Silent Sign-In Error: $e');
+      debugPrint('Google Silent Sign-In Error: $e');
       return false;
     }
   }
@@ -48,7 +49,7 @@ class GoogleDriveService {
       if (client == null) return null;
       return drive.DriveApi(client);
     } catch (e) {
-      print('Error getting Drive API client: $e');
+      debugPrint('Error getting Drive API client: $e');
       return null;
     }
   }
@@ -86,7 +87,7 @@ class GoogleDriveService {
         }
       }
     }
-    print('Backing up $photoCount photos and database...');
+    debugPrint('Backing up $photoCount photos and database...');
 
     encoder.close();
 
@@ -114,7 +115,9 @@ class GoogleDriveService {
         for (var i = 1; i < fileList.files!.length; i++) {
           try {
             await driveApi.files.delete(fileList.files![i].id!);
-          } catch (e) {}
+          } catch (e) {
+            debugPrint('Error deleting redundant backup file: $e');
+          }
         }
       }
     } else {

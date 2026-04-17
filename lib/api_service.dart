@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
@@ -451,7 +452,9 @@ class ApiService {
             await DatabaseHelper().deleteLocalRecipe(targetId);
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        debugPrint('Sync Error: $e');
+      }
     }
   }
 
@@ -469,6 +472,7 @@ class ApiService {
       if (response.statusCode == 200) return null;
       return 'Error';
     } catch (e) {
+      debugPrint('Sync Delete Error: $e');
       rethrow;
     }
   }
@@ -594,11 +598,11 @@ class ApiService {
         return jsonDecode(response.body);
       } else {
         final resp = jsonDecode(response.body);
-        print('AI Error: ${resp['message']}');
+        debugPrint('AI Error: ${resp['message']}');
         return null;
       }
     } catch (e) {
-      print('AI Error: $e');
+      debugPrint('AI Error: $e');
       return null;
     }
   }
@@ -777,7 +781,9 @@ class ApiService {
             'Accept': 'application/json',
           },
         );
-      } catch (e) {}
+      } catch (e) {
+        debugPrint('Logout Error: $e');
+      }
     }
     await prefs.remove('token');
   }
@@ -800,7 +806,7 @@ class ApiService {
       final newFile = await file.copy(newPath);
       return newFile.path;
     } catch (e) {
-      print('Error saving file permanently: $e');
+      debugPrint('Error saving file permanently: $e');
       return path;
     }
   }

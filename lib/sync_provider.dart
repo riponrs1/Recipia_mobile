@@ -145,7 +145,7 @@ class SyncProvider with ChangeNotifier {
       _localDatabaseSize = await _driveService.getLocalDatabaseSize();
       _localPhotoCount = await _driveService.getLocalPhotoCount();
     } catch (e) {
-      print('Cloud metadata fetch error (Drive API might be disabled): $e');
+      debugPrint('Cloud metadata fetch error (Drive API might be disabled): $e');
     }
     notifyListeners();
   }
@@ -176,6 +176,11 @@ class SyncProvider with ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Explicit full backup for backend migration
+  Future<bool> forceFullCloudBackup() async {
+    return await backupData();
   }
 
   Future<bool> restoreData() async {
@@ -222,5 +227,11 @@ class SyncProvider with ChangeNotifier {
 
   Future<List<Map<String, dynamic>>> getTrashRecipes() async {
     return await DatabaseHelper().getTrashRecipes();
+  }
+
+  Future<void> refreshAfterRestore() async {
+    _localDatabaseSize = await _driveService.getLocalDatabaseSize();
+    _localPhotoCount = await _driveService.getLocalPhotoCount();
+    notifyListeners();
   }
 }

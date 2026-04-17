@@ -47,7 +47,7 @@ class _MainScreenState extends State<MainScreen> {
     // Use PopScope for Android 14+ predictive back support
     return PopScope(
       canPop: false, // We manually handle the back gesture
-      onPopInvoked: (didPop) async {
+      onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
         // Try to pop the nested navigator

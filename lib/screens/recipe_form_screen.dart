@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -131,6 +130,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         }
       }
     } catch (e) {
+      debugPrint('Error initializing form (database/api): $e');
       if (mounted && _sections.isEmpty) {
         setState(() {
           _sections.addAll([
@@ -225,6 +225,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       );
       return result != null ? File(result.path) : null;
     } catch (e) {
+      debugPrint('Error compressing image: $e');
       return null;
     }
   }
@@ -393,7 +394,9 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       try {
         final syncProvider = Provider.of<SyncProvider>(context, listen: false);
         syncProvider.triggerAutoBackupIfEnabled();
-      } catch (e) {}
+      } catch (e) {
+        debugPrint('Error triggering auto backup: $e');
+      }
     } else {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text(error)));

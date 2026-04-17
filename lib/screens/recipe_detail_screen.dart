@@ -59,7 +59,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           _currentUserId = user['id'];
         });
       }
-    } catch (e) {}
+    } catch (e) {
+      debugPrint('Error fetching current user: $e');
+    }
   }
 
   Future<void> _refreshRecipe() async {
@@ -73,6 +75,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         });
       }
     } catch (e) {
+      debugPrint('Error refreshing recipe: $e');
       if (mounted) setState(() => _isFetchingDetails = false);
     }
   }
@@ -123,7 +126,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           String unit = item['unit']?.toString() ?? '';
           total += UnitConverter.toGrams(val, unit);
         }
-      } catch (e) {}
+      } catch (e) {
+        debugPrint('Error parsing ingredient qty for weight: $e');
+      }
     }
     total = total * _batchMultiplier;
     return total % 1 == 0 ? total.toInt().toString() : total.toStringAsFixed(2);
@@ -683,8 +688,8 @@ ${_recipe.process}
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF5F5F5),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF5F5F5),
                   shape: BoxShape.circle,
                 ),
                 child: const Center(

@@ -88,8 +88,10 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Center(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
-            child: SizedBox(
-              width: MediaQuery.of(context).size.width,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width > 600 ? 500 : double.infinity,
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -292,16 +294,15 @@ class _LoginScreenState extends State<LoginScreen> {
                                   final prefs =
                                       await SharedPreferences.getInstance();
                                   await prefs.setBool('is_offline', true);
-                                  if (mounted) {
-                                    Navigator.of(context).pushReplacement(
-                                      MaterialPageRoute(
-                                          builder: (_) => const MainScreen()),
-                                    );
-                                  }
+                                  if (!mounted) return;
+                                  Navigator.of(context).pushReplacement(
+                                    MaterialPageRoute(
+                                        builder: (_) => const MainScreen()),
+                                  );
                                 }
                               },
                               icon: Image.network(
-                                'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png',
+                                'https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png',
                                 height: 20,
                               ),
                               label: const Text('Sign in with Google'),
