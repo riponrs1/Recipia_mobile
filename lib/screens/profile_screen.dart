@@ -4,7 +4,6 @@ import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
@@ -27,6 +26,11 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   final _apiService = ApiService();
   Map<String, dynamic>? _userData;
+  Map<String, dynamic> _stats = {
+    'recipeCount': 0,
+    'pantryValue': 0.0,
+    'sectionCount': 0,
+  };
   bool _isLoading = false;
 
   @override
@@ -36,311 +40,129 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadData() async {
+    setState(() => _isLoading = true);
     try {
       final user = await _apiService.getUser();
+      final stats = await DatabaseHelper().getProfileStats();
       if (mounted) {
         setState(() {
           _userData = user;
+          _stats = stats;
         });
       }
     } catch (e) {
-      // Ignore errors, we'll use local/sync data
+      debugPrint('Data load error: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final syncProvider = Provider.of<SyncProvider>(context);
-
-    // Determine display name and email
-    final name = _userData?['name'] ?? syncProvider.userName ?? "Chef";
-    final email =
-        _userData?['email'] ?? syncProvider.userEmail ?? "Offline Mode";
+    final name = _userData?['name'] ?? syncProvider.userName ?? "Executive Chef";
+    final email = _userData?['email'] ?? syncProvider.userEmail ?? "Culinary Workspace";
     final avatarUrl = _userData?['profile']?['avatar'];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        title: const Text('Profile',
-            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        centerTitle: true,
-      ),
-      body: _isLoading
+      backgroundColor: const Color(0xFFFDFBF7),
+      body: _isLoading 
           ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  const SizedBox(height: 10),
-                  // Avatar Section
-                  Stack(
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                        ),
-                        child: CircleAvatar(
-                          radius: 55,
-                          backgroundColor: Colors.white,
-                          backgroundImage: avatarUrl != null
-                              ? CachedNetworkImageProvider(
-                                  ApiService.getImageUrl(avatarUrl))
-                              : (syncProvider.userPhoto != null
-                                  ? NetworkImage(syncProvider.userPhoto!)
-                                  : null) as ImageProvider?,
-                          child: (avatarUrl == null &&
-                                  syncProvider.userPhoto == null)
-                              ? Text(
-                                  name.isNotEmpty ? name[0].toUpperCase() : 'C',
-                                  style: const TextStyle(
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFFE74C3C)),
-                                )
-                              : null,
-                        ),
-                      ),
-                      Positioned(
-                        bottom: 0,
-                        right: 0,
-                        child: CircleAvatar(
-                          backgroundColor: const Color(0xFFE74C3C),
-                          radius: 16,
-                          child: IconButton(
-                            padding: EdgeInsets.zero,
-                            icon: const Icon(Icons.edit,
-                                color: Colors.white, size: 16),
-                            onPressed: () async {
-                              if (_userData != null) {
-                                await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) => EditProfileScreen(
-                                          userData: _userData!)),
-                                );
-                                _loadData();
-                              }
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    name,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF2D3748),
-                    ),
-                  ),
-                  Text(
-                    email,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  // Menu Items Card
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
-                          blurRadius: 20,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
+          : CustomScrollView(
+              physics: const BouncingScrollPhysics(),
+              slivers: [
+                _buildSliverHeader(name, email, avatarUrl, syncProvider),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
                     child: Column(
                       children: [
-                        _buildMenuTile(
-                          icon: Icons.sync_rounded,
-                          color: Colors.blue,
-                          title: "Backup & Sync",
-                          subtitle: "Google Drive cloud storage",
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const BackupSyncScreen())),
-                        ),
-                        const Divider(height: 1),
-                        _buildMenuTile(
-                          icon: Icons.category_outlined,
-                          color: Colors.orange,
-                          title: "Recipe Sections",
-                          subtitle: "Manage your food categories",
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      const RecipeSectionsScreen())),
-                        ),
-                        const Divider(height: 1),
-                        _buildMenuTile(
-                          icon: Icons.delete_outline_rounded,
-                          color: Colors.red,
-                          title: "Recycle Bin",
-                          subtitle: "Restore deleted recipes",
-                          onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const TrashScreen())),
-                        ),
+                        _buildStatsRow(),
+                        const SizedBox(height: 32),
+                        _buildMenuSection('KITCHEN MANAGEMENT', [
+                          _buildMenuItem(Icons.sync_rounded, Colors.blue, 'Backup & Sync', 'Cloud storage with Google Drive', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BackupSyncScreen()))),
+                          _buildMenuItem(Icons.category_outlined, Colors.orange, 'Cuisines & Sections', 'Personalize your kitchen categories', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeSectionsScreen()))),
+                          _buildMenuItem(Icons.delete_outline_rounded, Colors.red, 'Culinary Archive', 'Restore deleted masterpieces', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrashScreen()))),
+                        ]),
+                        const SizedBox(height: 24),
+                        _buildMenuSection('SYSTEM', [
+                          _buildMenuItem(Icons.import_export_rounded, Colors.teal, 'Export Records', 'Secure your local .db file', () => _exportDatabase(context)),
+                          _buildMenuItem(Icons.logout_rounded, Colors.grey.shade700, 'Logout', 'Safely sign out of Atelier', () => _handleLogout(context, syncProvider)),
+                        ]),
+                        const SizedBox(height: 40),
+                        Text('RECIPIA v2.0 • GOURMET ELEGANCE', style: TextStyle(color: Colors.brown.shade100, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
                       ],
                     ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Data Management Card
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
-                          blurRadius: 20,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      children: [
-                        _buildMenuTile(
-                          icon: Icons.import_export_rounded,
-                          color: Colors.teal,
-                          title: "Export Database",
-                          subtitle: "Download local .db file",
-                          onTap: () => _exportDatabase(context),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // Logout Card
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.03),
-                          blurRadius: 20,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: _buildMenuTile(
-                      icon: Icons.logout_rounded,
-                      color: Colors.grey.shade700,
-                      title: "Logout",
-                      subtitle: "Sign out of your account",
-                      onTap: () => _handleLogout(context, syncProvider),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-    );
-  }
-
-  Future<void> _exportDatabase(BuildContext context) async {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              "Data Management",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              "Export your data to a file or import a backup.",
-              style: TextStyle(color: Colors.grey),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text("EXPORT",
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                      letterSpacing: 1.2)),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildExportOption(
-                    icon: Icons.share_rounded,
-                    label: "Share / Cloud",
-                    color: Colors.blue,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _shareDatabase(context);
-                    },
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: _buildExportOption(
-                    icon: Icons.download_for_offline_rounded,
-                    label: "To Device",
-                    color: Colors.teal,
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _saveDatabaseToDevice(context);
-                    },
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 24),
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text("IMPORT",
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey,
-                      letterSpacing: 1.2)),
+    );
+  }
+
+  Widget _buildSliverHeader(String name, String email, String? avatarUrl, SyncProvider syncProvider) {
+    return SliverAppBar(
+      expandedHeight: 320.0,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: const Color(0xFF5D4037),
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+        onPressed: () => Navigator.pop(context),
+      ),
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: const Color(0xFF5D4037)),
+            Positioned(
+              right: -50,
+              top: -50,
+              child: Icon(Icons.restaurant_rounded, size: 280, color: Colors.white.withOpacity(0.04)),
             ),
-            const SizedBox(height: 12),
-            _buildExportOption(
-              icon: Icons.file_upload_outlined,
-              label: "Import Database (.db file)",
-              color: Colors.orange,
-              onTap: () {
-                Navigator.pop(ctx);
-                _importDatabaseFromFile(context);
-              },
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const SizedBox(height: 40),
+                Stack(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(color: Color(0xFFFAB1A0), shape: BoxShape.circle),
+                      child: CircleAvatar(
+                        radius: 54,
+                        backgroundColor: Colors.white,
+                        backgroundImage: avatarUrl != null
+                            ? CachedNetworkImageProvider(ApiService.getImageUrl(avatarUrl))
+                            : (syncProvider.userPhoto != null ? NetworkImage(syncProvider.userPhoto!) : null) as ImageProvider?,
+                        child: (avatarUrl == null && syncProvider.userPhoto == null)
+                            ? Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Color(0xFF5D4037)))
+                            : null,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: () async {
+                          if (_userData != null) {
+                            await Navigator.push(context, MaterialPageRoute(builder: (_) => EditProfileScreen(userData: _userData!)));
+                            _loadData();
+                          }
+                        },
+                        child: const CircleAvatar(
+                          radius: 18,
+                          backgroundColor: Color(0xFFFAB1A0),
+                          child: Icon(Icons.edit_rounded, color: Color(0xFF5D4037), size: 16),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                Text(email, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, fontWeight: FontWeight.w500)),
+              ],
             ),
           ],
         ),
@@ -348,30 +170,128 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildExportOption({
-    required IconData icon,
-    required String label,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+  Widget _buildStatsRow() {
+    return Row(
+      children: [
+        _buildStatCard('MASTERPIECES', _stats['recipeCount'].toString(), Icons.menu_book_rounded),
+        const SizedBox(width: 12),
+        _buildStatCard('PANTRY VALUE', '\$${_stats['pantryValue'].toStringAsFixed(0)}', Icons.inventory_2_rounded),
+        const SizedBox(width: 12),
+        _buildStatCard('SECTIONS', _stats['sectionCount'].toString(), Icons.grid_view_rounded),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, IconData icon) {
+    return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade200),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+          ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: color, size: 32),
+            Icon(icon, color: const Color(0xFFFAB1A0), size: 20),
             const SizedBox(height: 8),
-            Text(label,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                )),
+            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+            Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.grey, letterSpacing: 1)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMenuSection(String title, List<Widget> items) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 12, bottom: 12),
+          child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1.5)),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+            ],
+          ),
+          child: Column(children: items),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuItem(IconData icon, Color color, String title, String subtitle, VoidCallback onTap) {
+    return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      leading: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+        child: Icon(icon, color: color, size: 20),
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF2D3436))),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.grey)),
+      trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
+      onTap: onTap,
+    );
+  }
+
+  Future<void> _exportDatabase(BuildContext context) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        padding: const EdgeInsets.all(24),
+        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text("Archive Records", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            const SizedBox(height: 24),
+            _buildExportOption(Icons.share_rounded, 'SHARE ARCHIVE', 'Export to cloud or other apps', Colors.blue, () {
+              Navigator.pop(ctx);
+              _shareDatabase(context);
+            }),
+            const SizedBox(height: 12),
+            _buildExportOption(Icons.save_alt_rounded, 'SAVE TO DISK', 'Secure a copy on this device', Colors.teal, () {
+              Navigator.pop(ctx);
+              _saveDatabaseToDevice(context);
+            }),
+            const SizedBox(height: 12),
+            _buildExportOption(Icons.upload_file_rounded, 'RESTORE ARCHIVE', 'Import an existing .db file', Colors.orange, () {
+              Navigator.pop(ctx);
+              _importDatabaseFromFile(context);
+            }),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExportOption(IconData icon, String label, String sub, Color color, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(border: Border.all(color: Colors.black12), borderRadius: BorderRadius.circular(20)),
+        child: Row(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
+                Text(sub, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+              ]),
+            ),
           ],
         ),
       ),
@@ -384,26 +304,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await DatabaseHelper().closeDatabase();
       final dbDir = await getDatabasesPath();
       final dbPath = p.join(dbDir, 'recipia_offline.db');
-      final dbFile = File(dbPath);
-
-      if (await dbFile.exists()) {
-        await Share.shareXFiles(
-          [XFile(dbPath)],
-          text: 'Recipia Local Database Export',
-          subject: 'Recipia Database Backup',
-        );
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(const SnackBar(content: Text('File not found.')));
-        }
-      }
+      await Share.shareXFiles([XFile(dbPath)], text: 'Recipia Culinary Archive Export');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Share failed: $e')),
-        );
-      }
+      debugPrint('Share failed: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -412,48 +315,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _saveDatabaseToDevice(BuildContext context) async {
     try {
       setState(() => _isLoading = true);
-
-      // 1. Prepare source database file
       await DatabaseHelper().closeDatabase();
       final dbDir = await getDatabasesPath();
       final dbPath = p.join(dbDir, 'recipia_offline.db');
       final dbFile = File(dbPath);
-
-      if (!await dbFile.exists()) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Database file not found.')),
-          );
-        }
-        return;
-      }
-
-      // 2. Use FilePicker to "Save As" (Play Store Approved SAF method)
-      // This opens the native Android/iOS folder picker
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final fileName = 'Recipia_Backup_$timestamp.db';
-
-      final String? outputPath = await FilePicker.platform.saveFile(
-        dialogTitle: 'Select where to save your backup',
-        fileName: fileName,
-        type: FileType.any,
-        bytes: await dbFile.readAsBytes(),
-      );
-
-      if (outputPath != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Backup saved successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      final fileName = 'Recipia_Atelier_${DateTime.now().millisecondsSinceEpoch}.db';
+      await FilePicker.platform.saveFile(dialogTitle: 'Save Archive', fileName: fileName, type: FileType.any, bytes: await dbFile.readAsBytes());
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archive saved successfully!'), backgroundColor: Colors.green));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Save failed: $e')),
-        );
-      }
+      debugPrint('Save failed: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -461,107 +331,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _importDatabaseFromFile(BuildContext context) async {
     try {
-      // 1. Pick File (Native picker doesn't require broad permissions)
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.any,
-        allowMultiple: false,
+      final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
+      if (result == null || result.files.single.path == null) return;
+      final filePath = result.files.single.path!;
+      
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Restore Archive?"),
+          content: const Text("This will PERMANENTLY REPLACE your current kitchen records. This action cannot be undone."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("CANCEL")),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("RESTORE", style: TextStyle(color: Colors.red))),
+          ],
+        ),
       );
 
-      if (result == null || result.files.single.path == null) return;
-
-      final filePath = result.files.single.path!;
-
-      // 3. Confirmation Dialog
-      if (mounted) {
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text("Import Database?"),
-            content: const Text(
-                "This will PERMANENTLY REPLACE all your current recipes, ingredients, and settings with the data from this file.\n\nThis action cannot be undone."),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text("Cancel"),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                child: const Text("PROCEED",
-                    style: TextStyle(color: Colors.white)),
-              ),
-            ],
-          ),
-        );
-
-        if (confirm != true) return;
-
-        // 4. Execute Import
+      if (confirm == true) {
         setState(() => _isLoading = true);
         await DatabaseHelper().importDatabase(filePath);
-
-        // 5. Success
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Database imported successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          // Optionally trigger a provider refresh
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archive restored successfully!'), backgroundColor: Colors.green));
           context.read<SyncProvider>().refreshAfterRestore();
         }
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e')),
-        );
-      }
+      debugPrint('Restore failed: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  Widget _buildMenuTile({
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String subtitle,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Icon(icon, color: color, size: 24),
-      ),
-      title: Text(title,
-          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-      trailing: const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
-      onTap: onTap,
-    );
-  }
-
-  Future<void> _handleLogout(
-      BuildContext context, SyncProvider syncProvider) async {
+  Future<void> _handleLogout(BuildContext context, SyncProvider syncProvider) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Logout'),
         content: const Text('Are you sure you want to logout?'),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Logout', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Logout', style: TextStyle(color: Colors.red))),
         ],
       ),
     );
@@ -569,15 +378,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirm == true) {
       if (!mounted) return;
       setState(() => _isLoading = true);
-
       await _apiService.logout();
       await syncProvider.signOut();
-
       if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (route) => false,
-      );
+      Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (route) => false);
     }
   }
 }

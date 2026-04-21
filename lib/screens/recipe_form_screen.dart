@@ -28,6 +28,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   // Basic Info
   final _nameController = TextEditingController();
   final _brandController = TextEditingController();
+  final _servingsController = TextEditingController(text: '1');
   String _selectedSection = 'Other...';
 
   // Photos
@@ -43,6 +44,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
 
   final List<String> _sections = [];
   List<String> _availableBrands = [];
+  List<Map<String, dynamic>> _allPantryIngredients = []; // To lookup price/calories
 
   final List<String> _units = [
     'g',
@@ -82,9 +84,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           if (!_sections.contains('Other...')) {
             _sections.add('Other...');
           }
-
           _availableBrands = brands;
-
           _selectedSection =
               _sections.isNotEmpty ? _sections.first : 'Other...';
 
@@ -97,6 +97,13 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             }
           }
         });
+
+        final ingredients = await DatabaseHelper().getCachedIngredients();
+        if (mounted) {
+          setState(() {
+            _allPantryIngredients = ingredients;
+          });
+        }
       }
 
       // Sync from API in background
@@ -185,6 +192,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       }
 
       _processController.text = widget.recipe!.process;
+      _servingsController.text = widget.recipe!.servings.toString();
     }
   }
 
@@ -199,6 +207,8 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         'qty': TextEditingController(text: qty),
         'unit': unit,
         'customUnit': TextEditingController(text: customUnit ?? ''),
+        'price': 0.0,
+        'calories': 0.0,
       });
     });
   }
@@ -356,15 +366,23 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    final ingredientsData = _ingredientsList
-        .map((row) => {
-              'name': (row['name'] as TextEditingController).text,
-              'qty': (row['qty'] as TextEditingController).text,
-              'unit': row['unit'] == 'Other...'
-                  ? (row['customUnit'] as TextEditingController).text
-                  : row['unit'],
-            })
-        .toList();
+    final ingredientsData = _ingredientsList.map((row) {
+      final name = (row['name'] as TextEditingController).text;
+      // Try to find the latest metadata from pantry if not already there
+      final pantryItem = _allPantryIngredients.firstWhere(
+          (i) => i['name'].toString().toLowerCase() == name.toLowerCase(),
+          orElse: () => {});
+
+      return {
+        'name': name,
+        'qty': (row['qty'] as TextEditingController).text,
+        'unit': row['unit'] == 'Other...'
+            ? (row['customUnit'] as TextEditingController).text
+            : row['unit'],
+        'price': row['price'] ?? pantryItem['price'] ?? 0.0,
+        'calories': row['calories'] ?? pantryItem['calories'] ?? 0.0,
+      };
+    }).toList();
 
     final data = {
       'name': _nameController.text,
@@ -374,6 +392,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           : _selectedSection,
       'ingredients': jsonEncode(ingredientsData),
       'process': _processController.text,
+      'servings': int.tryParse(_servingsController.text) ?? 1,
       'visibility': 'private',
     };
 
@@ -429,17 +448,33 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                                   controller: _nameController,
                                   label: "Recipe Title",
                                   hint: "e.g. Grandma's Apple Pie",
-                                  icon: Icons.menu_book_rounded,
+                                  icon: Icons.restaurant_rounded,
                                   validator: (v) =>
                                       v!.isEmpty ? "Required" : null,
                                 ),
                                 const SizedBox(height: 16),
-                                _buildAutocompleteField(
-                                  controller: _brandController,
-                                  label: "Brand / Source",
-                                  hint: "Optional",
-                                  icon: Icons.label_outline,
-                                  options: _availableBrands,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _buildAutocompleteField(
+                                        controller: _brandController,
+                                        label: "Brand / Source",
+                                        hint: "Optional",
+                                        icon: Icons.label_outline,
+                                        options: _availableBrands,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: _buildTextField(
+                                        controller: _servingsController,
+                                        label: "Servings",
+                                        hint: "e.g. 4",
+                                        icon: Icons.group_outlined,
+                                        keyboardType: TextInputType.number,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 16),
                                 _buildDropdown(
@@ -654,11 +689,15 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     required String hint,
     IconData? icon,
     int maxLines = 1,
+    TextInputType? keyboardType,
+    FocusNode? focusNode,
     String? Function(String?)? validator,
   }) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
+      keyboardType: keyboardType,
+      focusNode: focusNode,
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
@@ -789,11 +828,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             ],
           ),
           const SizedBox(height: 8),
-          _buildTextField(
-            controller: row['name'],
-            label: "Ingredient",
-            hint: "e.g. Extra Virgin Olive Oil",
-          ),
+          _buildIngredientAutocomplete(index, row),
           const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -853,6 +888,45 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           ],
         ],
       ),
+    );
+  }
+
+  Widget _buildIngredientAutocomplete(int index, Map<String, dynamic> row) {
+    return Autocomplete<String>(
+      initialValue: TextEditingValue(text: (row['name'] as TextEditingController).text),
+      optionsBuilder: (TextEditingValue textEditingValue) {
+        if (textEditingValue.text.isEmpty) {
+          return const Iterable<String>.empty();
+        }
+        return _allPantryIngredients
+            .map((i) => i['name'] as String)
+            .where((name) => name.toLowerCase().contains(textEditingValue.text.toLowerCase()));
+      },
+      onSelected: (String selection) {
+        (row['name'] as TextEditingController).text = selection;
+        // Autofill metadata
+        final match = _allPantryIngredients.firstWhere(
+          (i) => i['name'] == selection,
+          orElse: () => {},
+        );
+        if (match.isNotEmpty) {
+          setState(() {
+            row['price'] = match['price'];
+            row['calories'] = match['calories'];
+          });
+        }
+      },
+      fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+        controller.addListener(() {
+          (row['name'] as TextEditingController).text = controller.text;
+        });
+        return _buildTextField(
+          controller: controller,
+          label: "Ingredient",
+          hint: "e.g. Extra Virgin Olive Oil",
+          focusNode: focusNode,
+        );
+      },
     );
   }
 }

@@ -1,0 +1,13 @@
+{
+    "name": "project-downloader",
+    "version": "1.0.0",
+    "description": "Simple file server to download files from project root",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "serve-index": "^1.9.1"
+    }
+}

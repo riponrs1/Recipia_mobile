@@ -1,43 +1,8 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
+import '../models/ingredient.dart';
 import 'ingredient_form_screen.dart';
 import 'profile_screen.dart';
-
-class Ingredient {
-  final int id;
-  final String name;
-  final String? brand;
-  final String category;
-  final double? price;
-  final String? unit;
-  final double? calories;
-
-  Ingredient({
-    required this.id,
-    required this.name,
-    this.brand,
-    required this.category,
-    this.price,
-    this.unit,
-    this.calories,
-  });
-
-  factory Ingredient.fromJson(Map<String, dynamic> json) {
-    return Ingredient(
-      id: json['id'],
-      name: json['name'],
-      brand: json['brand'],
-      category: json['category'] ?? 'Uncategorized',
-      price: json['price'] != null
-          ? double.tryParse(json['price'].toString())
-          : null,
-      unit: json['unit'],
-      calories: json['calories'] != null
-          ? double.tryParse(json['calories'].toString())
-          : null,
-    );
-  }
-}
 
 class IngredientsScreen extends StatefulWidget {
   const IngredientsScreen({super.key});
@@ -52,7 +17,6 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   List<Ingredient> _ingredients = [];
   List<Ingredient> _filteredIngredients = [];
 
-  // Filter state
   String _searchQuery = '';
   String _selectedCategory = 'All';
 
@@ -79,30 +43,21 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   Future<void> _loadIngredients() async {
     setState(() => _isLoading = true);
     try {
-      // NOTE: We assume ApiService has getIngredients(). If not we need to add it.
-      // For now we will mock or try to call it.
-      // Since I can't check ApiService easily without reading it again (I didn't check it for getIngredients specifically, but Dashboard had a comment about it),
-      // I will implement getIngredients in ApiService in the next step if missing.
       final data = await _apiService.getIngredients();
-
-      final List<Ingredient> loadedCallback =
-          (data).map((json) => Ingredient.fromJson(json)).toList();
+      final loaded = (data).map((json) => Ingredient.fromJson(json)).toList();
 
       if (mounted) {
         setState(() {
-          _ingredients = loadedCallback;
+          _ingredients = loaded;
           _filterIngredients();
           _isLoading = false;
         });
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-          // _ingredients = []; // Keep empty on error
-        });
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error loading ingredients: $e')));
+            SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -113,11 +68,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
         final matchesSearch =
             ingredient.name.toLowerCase().contains(_searchQuery.toLowerCase());
         final matchesCategory = _selectedCategory == 'All' ||
-            ingredient.category.toLowerCase() ==
-                _selectedCategory.toLowerCase() ||
-            ingredient.category
-                .toLowerCase()
-                .contains(_selectedCategory.toLowerCase()); // Flexible match
+            ingredient.category.toLowerCase() == _selectedCategory.toLowerCase();
         return matchesSearch && matchesCategory;
       }).toList();
     });
@@ -126,257 +77,264 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ingredients'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadIngredients,
-          ),
-          IconButton(
-            icon: const Icon(Icons.person_outline),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ProfileScreen()),
-            ),
-          ),
+      backgroundColor: const Color(0xFFFDFBF7), // Creamy background
+      body: CustomScrollView(
+        slivers: [
+          _buildSliverAppBar(),
+          SliverToBoxAdapter(child: _buildFilterSection()),
+          _isLoading 
+            ? const SliverFillRemaining(child: Center(child: CircularProgressIndicator()))
+            : _filteredIngredients.isEmpty 
+               ? _buildEmptyState()
+               : _buildIngredientsList(),
         ],
       ),
-      backgroundColor: const Color(0xFFF5F7FA),
-      body: Column(
-        children: [
-          // Search & Filter Section
-          Container(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _navigateToAdd,
+        backgroundColor: const Color(0xFF5D4037),
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        label: const Text('New Ingredient', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildSliverAppBar() {
+    return SliverAppBar(
+      expandedHeight: 180.0,
+      floating: false,
+      pinned: true,
+      elevation: 0,
+      backgroundColor: const Color(0xFF5D4037),
+      flexibleSpace: FlexibleSpaceBar(
+        centerTitle: false,
+        titlePadding: const EdgeInsets.only(left: 24, bottom: 60),
+        title: const Text(
+          'Pantry',
+          style: TextStyle(
             color: Colors.white,
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: Column(
-              children: [
-                // Search Bar
-                TextField(
-                  decoration: InputDecoration(
-                    hintText: 'Search ingredients...',
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(30),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                  ),
-                  onChanged: (val) {
-                    _searchQuery = val;
+            fontWeight: FontWeight.w900,
+            fontSize: 28,
+            letterSpacing: -0.5,
+          ),
+        ),
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(color: const Color(0xFF5D4037)),
+            Positioned(
+              right: -50,
+              top: -50,
+              child: Icon(Icons.kitchen_rounded, size: 250, color: Colors.white.withOpacity(0.05)),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+          onPressed: _loadIngredients,
+        ),
+        Padding(
+          padding: const EdgeInsets.only(right: 8.0),
+          child: IconButton(
+            icon: const Icon(Icons.person_outline_rounded, color: Colors.white),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+          ),
+        ),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(60),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          decoration: const BoxDecoration(
+            color: Color(0xFFFDFBF7),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: _buildSearchBar(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      height: 50,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: TextField(
+        onChanged: (val) {
+          _searchQuery = val;
+          _filterIngredients();
+        },
+        decoration: InputDecoration(
+          hintText: 'Search items...',
+          hintStyle: TextStyle(color: Colors.brown.shade200, fontSize: 14),
+          prefixIcon: Icon(Icons.search_rounded, color: Colors.brown.shade300),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFilterSection() {
+    return Container(
+      height: 60,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        itemCount: _categories.length,
+        itemBuilder: (context, index) {
+          final cat = _categories[index];
+          final isSelected = _selectedCategory == cat;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: ChoiceChip(
+              label: Text(cat),
+              selected: isSelected,
+              onSelected: (selected) {
+                if (selected) {
+                  setState(() {
+                    _selectedCategory = cat;
                     _filterIngredients();
-                  },
-                ),
-                const SizedBox(height: 12),
-                // Category Chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: _categories.map((cat) {
-                      final isSelected = _selectedCategory == cat;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
-                          label: Text(cat),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() {
-                                _selectedCategory = cat;
-                                _filterIngredients();
-                              });
-                            }
-                          },
-                          selectedColor: const Color(0xFFE74C3C),
-                          labelStyle: TextStyle(
-                            color: isSelected ? Colors.white : Colors.black87,
-                            fontWeight: isSelected
-                                ? FontWeight.bold
-                                : FontWeight.normal,
-                          ),
-                          backgroundColor: Colors.grey[100],
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20)),
-                        ),
-                      );
-                    }).toList(),
+                  });
+                }
+              },
+              selectedColor: const Color(0xFFFAB1A0).withOpacity(0.2),
+              labelStyle: TextStyle(
+                color: isSelected ? const Color(0xFFD63031) : const Color(0xFF636E72),
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                fontSize: 13,
+              ),
+              backgroundColor: Colors.white,
+              elevation: 0,
+              pressElevation: 0,
+              side: BorderSide(
+                color: isSelected ? const Color(0xFFD63031).withOpacity(0.3) : Colors.black12,
+                width: 1,
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildIngredientsList() {
+    return SliverPadding(
+      padding: const EdgeInsets.all(24),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final item = _filteredIngredients[index];
+            return _buildIngredientCard(item);
+          },
+          childCount: _filteredIngredients.length,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIngredientCard(Ingredient item) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5)),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () => _navigateToEdit(item),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                _buildCategoryIcon(item.category),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF2D3436))),
+                      const SizedBox(height: 4),
+                      Text(item.category, style: TextStyle(color: Colors.brown.shade300, fontSize: 12, fontWeight: FontWeight.w600)),
+                    ],
                   ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    if (item.price != null && item.unit != null)
+                      Text('\$${item.price!.toStringAsFixed(2)}/${item.unit}', 
+                           style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037), fontSize: 14)),
+                    if (item.calories != null)
+                      Text('${item.calories!.toInt()} kcal', 
+                           style: TextStyle(color: Colors.grey.shade400, fontSize: 11, fontWeight: FontWeight.w600)),
+                  ],
                 ),
               ],
             ),
           ),
-
-          // List
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredIngredients.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.kitchen,
-                                size: 64, color: Colors.grey[300]),
-                            const SizedBox(height: 16),
-                            Text('No ingredients found',
-                                style: TextStyle(color: Colors.grey[500])),
-                          ],
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _filteredIngredients.length,
-                        itemBuilder: (context, index) {
-                          final ingredient = _filteredIngredients[index];
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                            elevation: 2,
-                            child: ListTile(
-                              contentPadding: const EdgeInsets.all(16),
-                              leading: Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange.withOpacity(0.1),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.fastfood,
-                                    color: Colors.orange), // Generic food icon
-                              ),
-                              title: Text(
-                                ingredient.name,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold, fontSize: 16),
-                              ),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    ingredient.category,
-                                    style: TextStyle(
-                                        color: Colors.blue[700],
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w500),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      if (ingredient.price != null &&
-                                          ingredient.unit != null)
-                                        Text(
-                                            '\$${ingredient.price} / ${ingredient.unit}',
-                                            style: const TextStyle(
-                                                color: Colors.green,
-                                                fontWeight: FontWeight.bold)),
-                                      if (ingredient.calories != null) ...[
-                                        const SizedBox(width: 12),
-                                        Text('${ingredient.calories} kcal',
-                                            style: const TextStyle(
-                                                color: Colors.grey)),
-                                      ]
-                                    ],
-                                  ),
-                                ],
-                              ),
-                              trailing: PopupMenuButton<String>(
-                                onSelected: (value) async {
-                                  if (value == 'edit') {
-                                    Navigator.of(context)
-                                        .push(
-                                      MaterialPageRoute(
-                                          builder: (_) => IngredientFormScreen(
-                                              ingredient: ingredient)),
-                                    )
-                                        .then((result) {
-                                      if (result == true) _loadIngredients();
-                                    });
-                                  } else if (value == 'delete') {
-                                    // Confirm delete
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text('Delete Ingredient?'),
-                                        content: Text(
-                                            'Are you sure you want to delete ${ingredient.name}?'),
-                                        actions: [
-                                          TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(ctx, false),
-                                              child: const Text('Cancel')),
-                                          TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(ctx, true),
-                                              child: const Text('Delete',
-                                                  style: TextStyle(
-                                                      color: Colors.red))),
-                                        ],
-                                      ),
-                                    );
-
-                                    if (confirm == true) {
-                                      final error = await _apiService
-                                          .deleteIngredient(ingredient.id);
-                                      if (!mounted) return;
-                                      if (error == null) {
-                                        _loadIngredients();
-                                      } else {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                                SnackBar(content: Text(error)));
-                                      }
-                                    }
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                      value: 'edit',
-                                      child: Row(children: [
-                                        Icon(Icons.edit,
-                                            size: 20, color: Colors.blue),
-                                        SizedBox(width: 8),
-                                        Text('Edit')
-                                      ])),
-                                  const PopupMenuItem(
-                                      value: 'delete',
-                                      child: Row(children: [
-                                        Icon(Icons.delete,
-                                            size: 20, color: Colors.red),
-                                        SizedBox(width: 8),
-                                        Text('Delete')
-                                      ])),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.of(context)
-              .push(
-            MaterialPageRoute(builder: (_) => const IngredientFormScreen()),
-          )
-              .then((result) {
-            if (result == true) {
-              _loadIngredients();
-            }
-          });
-        },
-        backgroundColor: Colors.green,
-        icon: const Icon(Icons.add_circle, color: Colors.white),
-        label: const Text('Add Ingredient',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
       ),
     );
+  }
+
+  Widget _buildCategoryIcon(String category) {
+    IconData icon;
+    Color color;
+    switch (category.toLowerCase()) {
+      case 'dairy': icon = Icons.egg_outlined; color = Colors.orange; break;
+      case 'produce': icon = Icons.eco_outlined; color = Colors.green; break;
+      case 'meat': icon = Icons.kebab_dining_outlined; color = Colors.red; break;
+      default: icon = Icons.inventory_2_outlined; color = Colors.brown;
+    }
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Icon(icon, color: color, size: 24),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return SliverFillRemaining(
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.inventory_rounded, size: 80, color: Colors.brown.shade50),
+            const SizedBox(height: 16),
+            Text('Pantry is empty', style: TextStyle(color: Colors.brown.shade200, fontSize: 16, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _navigateToAdd() {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => const IngredientFormScreen())).then((val) {
+      if (val == true) _loadIngredients();
+    });
+  }
+
+  void _navigateToEdit(Ingredient item) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => IngredientFormScreen(ingredient: item))).then((val) {
+      if (val == true) _loadIngredients();
+    });
   }
 }

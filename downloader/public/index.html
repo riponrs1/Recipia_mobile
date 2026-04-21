@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Downloader</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
+        h1 { font-size: 24px; margin-bottom: 20px; }
+        .breadcrumb { margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 6px; }
+        .breadcrumb a { color: #0366d6; text-decoration: none; cursor: pointer; }
+        .breadcrumb a:hover { text-decoration: underline; }
+        .file-list { list-style: none; padding: 0; border: 1px solid #e1e4e8; border-radius: 6px; }
+        .file-item { padding: 10px 15px; border-bottom: 1px solid #e1e4e8; display: flex; align-items: center; }
+        .file-item:last-child { border-bottom: none; }
+        .file-item:hover { background-color: #f6f8fa; }
+        .file-icon { margin-right: 10px; font-size: 20px; }
+        .file-name { flex-grow: 1; color: #0366d6; cursor: pointer; text-decoration: none; }
+        .file-name:hover { text-decoration: underline; }
+        .download-btn { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <h1>📂 Project Files</h1>
+    <div class="breadcrumb" id="breadcrumb"></div>
+    <ul class="file-list" id="fileList"></ul>
+
+    <script>
+        let currentPath = '';
+
+        async function loadFiles(path = '') {
+            currentPath = path;
+            const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
+            const data = await res.json();
+            render(data);
+        }
+
+        function render(data) {
+            const list = document.getElementById('fileList');
+            const breadcrumb = document.getElementById('breadcrumb');
+            
+            // Render Breadcrumb
+            const parts = data.path.split('/').filter(p => p);
+            let breadcrumbHtml = `<a onclick="loadFiles('')">🏠 Root</a>`;
+            let accPath = '';
+            parts.forEach(part => {
+                accPath += (accPath ? '/' : '') + part;
+                breadcrumbHtml += ` / <a onclick="loadFiles('${accPath}')">${part}</a>`;
+            });
+            breadcrumb.innerHTML = breadcrumbHtml;
+
+            // Render Files
+            list.innerHTML = '';
+            
+            if (data.path !== '') {
+                const parentPath = data.path.split('/').slice(0, -1).join('/');
+                list.innerHTML += `
+                    <li class="file-item" onclick="loadFiles('${parentPath}')">
+                        <span class="file-icon">Up</span>
+                        <span class="file-name">..</span>
+                    </li>`;
+            }
+
+            data.files.sort((a, b) => b.isDirectory - a.isDirectory || a.name.localeCompare(b.name)).forEach(file => {
+                const icon = file.isDirectory ? '📁' : '📄';
+                const clickAction = file.isDirectory 
+                    ? `onclick="loadFiles('${file.path}')"` 
+                    : `href="/download?path=${encodeURIComponent(file.path)}"`; // Download trigger
+                
+                const nameAction = file.isDirectory 
+                    ? `onclick="loadFiles('${file.path}')"` 
+                    : `href="/download?path=${encodeURIComponent(file.path)}"`; 
+
+                list.innerHTML += `
+                    <li class="file-item">
+                        <span class="file-icon">${icon}</span>
+                        <a class="file-name" ${nameAction}>${file.name}</a>
+                        ${!file.isDirectory ? `<a class="download-btn" href="/download?path=${encodeURIComponent(file.path)}">Download</a>` : ''}
+                    </li>`;
+            });
+        }
+
+        loadFiles();
+    </script>
+</body>
+</html>

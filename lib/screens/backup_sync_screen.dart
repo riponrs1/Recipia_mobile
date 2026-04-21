@@ -27,6 +27,100 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
         padding: const EdgeInsets.all(24.0),
         child: Column(
           children: [
+            // --- NEW: Offline Readiness Section ---
+            Container(
+              padding: const EdgeInsets.all(24),
+              margin: const EdgeInsets.only(bottom: 24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.05),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Icon(Icons.offline_pin_rounded,
+                            color: Colors.green.shade700, size: 32),
+                      ),
+                      const SizedBox(width: 16),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Offline Readiness",
+                              style: TextStyle(
+                                  fontSize: 20, fontWeight: FontWeight.bold)),
+                          Text("Sync for no-internet usage",
+                              style:
+                                  TextStyle(fontSize: 12, color: Colors.grey)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 40),
+                  const Text(
+                    "Download all recipes, ingredients, and categories from the server to your local database so you can work completely offline.",
+                    style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5),
+                  ),
+                  const SizedBox(height: 24),
+                  if (syncProvider.isDownloadingAll)
+                    const Column(
+                      children: [
+                        LinearProgressIndicator(color: Colors.green),
+                        SizedBox(height: 12),
+                        Text("Downloading server data...",
+                            style: TextStyle(color: Colors.grey, fontSize: 13)),
+                      ],
+                    )
+                  else
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          final error = await syncProvider.downloadAllFromServer();
+                          if (!mounted) return;
+                          
+                          if (error == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                              content: Text('Offline data ready!'),
+                              backgroundColor: Colors.green,
+                            ));
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text('Sync failed: $error'),
+                              backgroundColor: Colors.red,
+                            ));
+                          }
+                        },
+                        icon: const Icon(Icons.download_for_offline_rounded),
+                        label: const Text("Download All Server Data",
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green.shade600,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // --- Cloud Backup Section ---
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(

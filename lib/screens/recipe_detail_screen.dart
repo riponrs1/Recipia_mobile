@@ -10,9 +10,11 @@ import 'package:excel/excel.dart' hide Border;
 import 'package:path_provider/path_provider.dart';
 import '../api_service.dart';
 import '../models/recipe.dart';
+import '../database_helper.dart';
 import '../sync_provider.dart';
 import '../utils/unit_converter.dart';
 import 'recipe_form_screen.dart';
+import 'recipe_analysis_screen.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -117,27 +119,67 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     }
   }
 
-  String _calculateTotalWeight() {
+  String _calculateTotalCalories() {
     double total = 0.0;
     for (var item in _parsedIngredients) {
       try {
-        if (item['qty'] != null) {
-          double val = double.parse(item['qty'].toString());
-          String unit = item['unit']?.toString() ?? '';
-          total += UnitConverter.toGrams(val, unit);
+        double qty = double.tryParse(item['qty'].toString()) ?? 0.0;
+        String unit = item['unit']?.toString() ?? '';
+        double calPerKg = (item['calories'] ?? 0.0).toDouble();
+
+        if (calPerKg > 0) {
+          double grams = UnitConverter.toGrams(qty, unit);
+          if (grams > 0) {
+            total += (grams / 1000) * calPerKg;
+          } else {
+            total += qty * calPerKg;
+          }
         }
       } catch (e) {
-        debugPrint('Error parsing ingredient qty for weight: $e');
+        debugPrint('Error calculating calories: $e');
       }
     }
     total = total * _batchMultiplier;
-    return total % 1 == 0 ? total.toInt().toString() : total.toStringAsFixed(2);
+    return total.toStringAsFixed(0);
+  }
+
+  String _calculateTotalCost() {
+    double total = 0.0;
+    for (var item in _parsedIngredients) {
+      try {
+        double qty = double.tryParse(item['qty'].toString()) ?? 0.0;
+        String unit = item['unit']?.toString() ?? '';
+        double pricePerKg = (item['price'] ?? 0.0).toDouble();
+
+        if (pricePerKg > 0) {
+          double grams = UnitConverter.toGrams(qty, unit);
+          if (grams > 0) {
+            total += (grams / 1000) * pricePerKg;
+          } else {
+            total += qty * pricePerKg;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error calculating cost: $e');
+      }
+    }
+    total = total * _batchMultiplier;
+    return total.toStringAsFixed(2);
+  }
+
+  String _calculateCostPerServing() {
+    double total = double.tryParse(_calculateTotalCost()) ?? 0.0;
+    int servings = _recipe.servings > 0 ? _recipe.servings : 1;
+    double perServing = total / servings; // Total is already batch-multiplied
+    return perServing.toStringAsFixed(2);
   }
 
   Future<void> _shareRecipe() async {
     final String text = '''
 Check out this recipe: ${_recipe.name}
 ${_recipe.brandName != null ? 'Brand: ${_recipe.brandName}\n' : ''}
+Calories: ${_calculateTotalCalories()} kcal
+Total Cost: \$${_calculateTotalCost()}
 Ingredients:
 ${_parsedIngredients.map((i) => '- ${i['name']}: ${_formatQty(i['qty'])} ${i['unit'] ?? ''}').join('\n')}
 
@@ -160,6 +202,8 @@ ${_recipe.process}
                         fontSize: 24, fontWeight: pw.FontWeight.bold))),
             if (_recipe.brandName != null)
               pw.Text('Brand: ${_recipe.brandName}'),
+            pw.SizedBox(height: 10),
+            pw.Text('Nutrition: ${_calculateTotalCalories()} kcal | Cost: \$${_calculateTotalCost()}'),
             pw.SizedBox(height: 20),
             pw.Text('Ingredients (Batch: ${_batchMultiplier}x)',
                 style:
@@ -173,7 +217,6 @@ ${_recipe.process}
                       _formatQty(item['qty']),
                       item['unit'].toString()
                     ]),
-                <String>['Total', '${_calculateTotalWeight()} g', ''],
               ],
             ),
             pw.SizedBox(height: 20),
@@ -216,16 +259,19 @@ ${_recipe.process}
       Sheet sheetObject = excel['Sheet1'];
       sheetObject.cell(CellIndex.indexByString("A1")).value =
           TextCellValue("Recipe: ${_recipe.name}");
-      sheetObject.cell(CellIndex.indexByString("A3")).value =
+      sheetObject.cell(CellIndex.indexByString("A2")).value =
+          TextCellValue("Kcal: ${_calculateTotalCalories()} | Cost: \$${_calculateTotalCost()}");
+      
+      sheetObject.cell(CellIndex.indexByString("A4")).value =
           TextCellValue("Ingredient");
-      sheetObject.cell(CellIndex.indexByString("B3")).value =
+      sheetObject.cell(CellIndex.indexByString("B4")).value =
           TextCellValue("Quantity");
-      sheetObject.cell(CellIndex.indexByString("C3")).value =
+      sheetObject.cell(CellIndex.indexByString("C4")).value =
           TextCellValue("Unit");
 
       for (var i = 0; i < _parsedIngredients.length; i++) {
         var item = _parsedIngredients[i];
-        var row = i + 4;
+        var row = i + 5;
         sheetObject.cell(CellIndex.indexByString("A$row")).value =
             TextCellValue(item['name'].toString());
         sheetObject.cell(CellIndex.indexByString("B$row")).value =
@@ -287,15 +333,11 @@ ${_recipe.process}
       if (error == null) {
         if (mounted) {
           Navigator.pop(context, true);
-
-          // Trigger auto backup if enabled
           try {
             final syncProvider =
                 Provider.of<SyncProvider>(context, listen: false);
             syncProvider.triggerAutoBackupIfEnabled();
-          } catch (e) {
-            // Ignore
-          }
+          } catch (e) {}
         }
       } else {
         if (mounted) {
@@ -314,26 +356,26 @@ ${_recipe.process}
     }
   }
 
-  Widget _buildRecipeImage(String path) {
-    final imageUrl = ApiService.getImageUrl(path);
-    if (imageUrl.startsWith('http')) {
-      return CachedNetworkImage(
-        imageUrl: imageUrl,
-        fit: BoxFit.cover,
-        placeholder: (context, url) => Container(color: Colors.grey.shade400),
-        errorWidget: (context, url, error) => Container(
-            color: Colors.orange.shade100,
-            child: const Icon(Icons.menu_book_rounded,
-                size: 100, color: Colors.orange)),
-      );
-    } else {
-      return Image.file(
-        File(imageUrl),
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => Container(
-            color: Colors.orange.shade100,
-            child: const Icon(Icons.menu_book_rounded,
-                size: 100, color: Colors.orange)),
+
+
+  Future<void> _markAsCooked() async {
+    setState(() => _isLoading = true);
+    await DatabaseHelper().incrementCookedCount(_recipe.id);
+    setState(() => _isLoading = false);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle_rounded, color: Colors.white),
+              const SizedBox(width: 12),
+              Text('MASTERPIECE RECORDED: ${_recipe.name.toUpperCase()}'),
+            ],
+          ),
+          backgroundColor: const Color(0xFF5D4037),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       );
     }
   }
@@ -342,35 +384,36 @@ ${_recipe.process}
   Widget build(BuildContext context) {
     bool isOwner = _currentUserId == _recipe.userId;
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFFDFBF7),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF5D4037)))
           : CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                _buildModernAppBar(isOwner),
+                _buildMuseumAppBar(),
                 SliverToBoxAdapter(
                   child: Container(
                     decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(32)),
+                      color: Color(0xFFFDFBF7),
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _buildHeaderSection(isOwner),
+                          _buildHeaderSection(),
+                          const SizedBox(height: 24),
+                          _buildMuseumMetricBar(),
                           const SizedBox(height: 32),
                           _buildBatchControl(),
                           const SizedBox(height: 32),
                           _buildIngredientsSection(),
                           const SizedBox(height: 32),
                           _buildPreparationSection(),
-                          const SizedBox(height: 40),
+                          const SizedBox(height: 48),
                           _buildActionButtons(isOwner),
-                          const SizedBox(height: 60),
+                          const SizedBox(height: 120),
                         ],
                       ),
                     ),
@@ -378,233 +421,159 @@ ${_recipe.process}
                 ),
               ],
             ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, -5)),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: ElevatedButton(
+                onPressed: _markAsCooked,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFAB1A0),
+                  foregroundColor: const Color(0xFF5D4037),
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                  elevation: 0,
+                ),
+                child: const Text('MARK AS COOKED', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF5D4037),
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: IconButton(
+                icon: const Icon(Icons.restaurant_rounded, color: Colors.white),
+                onPressed: () {},
+                padding: const EdgeInsets.all(20),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _buildModernAppBar(bool isOwner) {
+  Widget _buildMuseumAppBar() {
     return SliverAppBar(
-      expandedHeight: 350.0,
+      expandedHeight: 320.0,
       elevation: 0,
       pinned: true,
-      stretch: true,
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFF5D4037),
       leading: IconButton(
-        icon: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.3),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
-        ),
+        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 16),
-          child: IconButton(
-            icon: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.share_outlined,
-                  color: Colors.white, size: 20),
-            ),
-            onPressed: _shareRecipe,
-            tooltip: 'Share Recipe',
-          ),
+        IconButton(
+          icon: const Icon(Icons.share_rounded, color: Colors.white),
+          onPressed: _shareRecipe,
         ),
+        const SizedBox(width: 8),
       ],
       flexibleSpace: FlexibleSpaceBar(
-        stretchModes: const [
-          StretchMode.zoomBackground,
-          StretchMode.blurBackground,
-        ],
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            _recipe.itemPhoto != null
-                ? _buildRecipeImage(_recipe.itemPhoto!)
-                : Container(
-                    color: const Color(0xFFF7F7F7),
-                    child: Icon(Icons.menu_book_rounded,
-                        size: 80, color: Colors.grey.shade300),
-                  ),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black26,
-                    Colors.transparent,
-                    Colors.black54,
-                  ],
-                  stops: [0.0, 0.4, 1.0],
-                ),
-              ),
-            ),
-          ],
-        ),
+        background: _recipe.itemPhoto != null
+            ? _buildRecipeImage(_recipe.itemPhoto!)
+            : Container(color: const Color(0xFF5D4037)),
       ),
     );
   }
 
-  Widget _buildHeaderSection(bool isOwner) {
+  Widget _buildHeaderSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: Text(
-                _recipe.name,
-                style: const TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A),
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-          ],
+        Text(_recipe.sectionName.toUpperCase(), 
+          style: const TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+        const SizedBox(height: 8),
+        Text(
+          _recipe.name,
+          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF2D3436), letterSpacing: -1),
         ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8.0,
-          runSpacing: 8.0,
-          children: [
-            if (_recipe.brandName != null && _recipe.brandName!.isNotEmpty)
-              _buildTag(
-                  _recipe.brandName!,
-                  const Color(0xFFE74C3C).withOpacity(0.1),
-                  const Color(0xFFE74C3C)),
-            _buildTag(
-                _recipe.sectionName,
-                const Color(0xFF3498DB).withOpacity(0.1),
-                const Color(0xFF3498DB)),
-            if (_currentUserId != null && !isOwner && _recipe.ownerName != null)
-              _buildTag('By ${_recipe.ownerName}', Colors.teal.withOpacity(0.1),
-                  Colors.teal),
-          ],
-        ),
+        if (_recipe.brandName != null && _recipe.brandName!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0),
+            child: Text('By ${_recipe.brandName}', 
+              style: TextStyle(color: Colors.brown.shade200, fontSize: 14, fontWeight: FontWeight.w500)),
+          ),
       ],
     );
   }
 
-  Widget _buildTag(String label, Color bgColor, Color textColor) {
+  Widget _buildMuseumMetricBar() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 24),
       decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black.withOpacity(0.04)),
       ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: textColor,
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-        ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _buildMuseumMetricItem('${_calculateTotalCalories()} kcal', 'CALORIES'),
+          _buildMetricSeparator(),
+          _buildMuseumMetricItem('\$${_calculateTotalCost()}', 'TOTAL COST'),
+          _buildMetricSeparator(),
+          _buildMuseumMetricItem('\$${_calculateCostPerServing()}', 'PER SERV'),
+        ],
       ),
     );
   }
+
+  Widget _buildMuseumMetricItem(String value, String label) {
+    return Column(
+      children: [
+        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+        const SizedBox(height: 2),
+        Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFFAB1A0), letterSpacing: 1)),
+      ],
+    );
+  }
+
+  Widget _buildMetricSeparator() => Container(width: 1, height: 20, color: Colors.black.withOpacity(0.05));
 
   Widget _buildBatchControl() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: const Color(0xFFFDFDFD),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: const Color(0xFFF0F0F0)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.02),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        border: Border.all(color: Colors.black.withOpacity(0.04)),
       ),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFFE74C3C).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.scale_outlined,
-                color: Color(0xFFE74C3C), size: 24),
-          ),
-          const SizedBox(width: 16),
           const Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Batch Size',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-                Text(
-                  'Adjust portions',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
+            child: Text('SCALE BATCH', 
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Color(0xFF5D4037))),
           ),
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFF5F5F5),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                _buildBatchButton(Icons.remove, () => _updateBatch(-0.5)),
-                SizedBox(
-                  width: 50,
-                  child: TextField(
-                    controller: _batchController,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w800, fontSize: 16),
-                    decoration: const InputDecoration(
-                      border: InputBorder.none,
-                      isDense: true,
-                    ),
-                    onChanged: (val) {
-                      if (val.isEmpty) return;
-                      final parsed = double.tryParse(val);
-                      if (parsed != null && parsed > 0) {
-                        setState(() => _batchMultiplier = parsed);
-                      }
-                    },
-                  ),
-                ),
-                _buildBatchButton(Icons.add, () => _updateBatch(0.5)),
-              ],
-            ),
+          _buildBatchIcon(Icons.remove_rounded, () => _updateBatch(-0.5)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text('${_formatBatch(_batchMultiplier)}x', 
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF5D4037))),
           ),
+          _buildBatchIcon(Icons.add_rounded, () => _updateBatch(0.5)),
         ],
       ),
     );
   }
 
-  Widget _buildBatchButton(IconData icon, VoidCallback onTap) {
-    return InkWell(
+  Widget _buildBatchIcon(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Icon(icon, size: 18, color: const Color(0xFF1A1A1A)),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: const Color(0xFFFDFBF7), borderRadius: BorderRadius.circular(10)),
+        child: Icon(icon, size: 18, color: const Color(0xFF5D4037)),
       ),
     );
   }
@@ -613,141 +582,24 @@ ${_recipe.process}
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
-          children: [
-            Icon(Icons.restaurant_menu_rounded,
-                color: Color(0xFFE74C3C), size: 22),
-            SizedBox(width: 8),
-            Text(
-              'Ingredients',
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A)),
-            ),
-          ],
-        ),
+        const Text('INGREDIENTS', 
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
         const SizedBox(height: 16),
-        if (_parsedIngredients.isEmpty &&
-            _recipe.ingredients.isNotEmpty &&
-            !_recipe.ingredients.startsWith('['))
-          _buildLegacyIngredientsText()
-        else if (_parsedIngredients.isNotEmpty)
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: const Color(0xFFF0F0F0)),
-            ),
-            child: Column(
-              children: [
-                ..._parsedIngredients.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final item = entry.value;
-                  final isLast = index == _parsedIngredients.length - 1;
-                  return _buildIngredientItem(item, !isLast);
-                }),
-                _buildTotalWeightFooter(),
-              ],
-            ),
-          )
-        else if (_isFetchingDetails)
-          const Center(
-              child: Padding(
-                  padding: EdgeInsets.all(20),
-                  child: CircularProgressIndicator()))
-        else
-          const Center(
-              child: Text('No ingredients listed.',
-                  style: TextStyle(
-                      fontStyle: FontStyle.italic, color: Colors.grey))),
-      ],
-    );
-  }
-
-  Widget _buildLegacyIngredientsText() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF9F9F9),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: Text(_recipe.ingredients,
-          style: const TextStyle(fontSize: 15, height: 1.5)),
-    );
-  }
-
-  Widget _buildIngredientItem(Map<String, dynamic> item, bool showDivider) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        ..._parsedIngredients.map((item) => Padding(
+          padding: const EdgeInsets.only(bottom: 12),
           child: Row(
             children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF5F5F5),
-                  shape: BoxShape.circle,
-                ),
-                child: const Center(
-                  child: Icon(Icons.check, size: 16, color: Colors.green),
-                ),
-              ),
-              const SizedBox(width: 16),
+              Container(width: 4, height: 4, decoration: const BoxDecoration(color: Color(0xFFFAB1A0), shape: BoxShape.circle)),
+              const SizedBox(width: 12),
               Expanded(
-                child: Text(
-                  item['name'] ?? '',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                      color: Color(0xFF333333)),
-                ),
+                child: Text(item['name'] ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF2D3436))),
               ),
-              Text(
-                '${_formatQty(item['qty'])} ${item['unit'] ?? ''}',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: Color(0xFFE74C3C)),
-              ),
+              Text('${_formatQty(item['qty'])} ${item['unit'] ?? ''}', 
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
             ],
           ),
-        ),
-        if (showDivider)
-          Padding(
-            padding: const EdgeInsets.only(left: 68),
-            child: Divider(height: 1, color: Colors.grey.withOpacity(0.1)),
-          ),
+        )),
       ],
-    );
-  }
-
-  Widget _buildTotalWeightFooter() {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDFDFD),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
-        border: Border(top: BorderSide(color: Colors.grey.withOpacity(0.1))),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text("Total Weight",
-              style:
-                  TextStyle(fontWeight: FontWeight.w600, color: Colors.grey)),
-          Text(
-            '${_calculateTotalWeight()} g',
-            style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 18,
-                color: Color(0xFF1A1A1A)),
-          ),
-        ],
-      ),
     );
   }
 
@@ -755,34 +607,11 @@ ${_recipe.process}
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
-          children: [
-            Icon(Icons.menu_book_rounded, color: Color(0xFFE74C3C), size: 22),
-            SizedBox(width: 8),
-            Text(
-              'Preparation',
-              style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w800,
-                  color: Color(0xFF1A1A1A)),
-            ),
-          ],
-        ),
+        const Text('THE PROCESS', 
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF9F9F9),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0xFFF0F0F0)),
-          ),
-          child: Text(
-            _recipe.process,
-            style: const TextStyle(
-                fontSize: 16, height: 1.8, color: Color(0xFF444444)),
-          ),
-        ),
+        Text(_recipe.process, 
+          style: const TextStyle(fontSize: 16, height: 1.8, color: Color(0xFF636E72))),
       ],
     );
   }
@@ -790,49 +619,16 @@ ${_recipe.process}
   Widget _buildActionButtons(bool isOwner) {
     return Column(
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildExportButton(
-                Icons.picture_as_pdf_rounded,
-                'Download PDF',
-                const Color(0xFFE74C3C),
-                _downloadPdf,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildExportButton(
-                Icons.table_view_rounded,
-                'Export Excel',
-                const Color(0xFF27AE60),
-                _downloadExcel,
-              ),
-            ),
-          ],
-        ),
+        _buildMuseumButton(Icons.picture_as_pdf_rounded, 'SAVE AS PDF', _downloadPdf),
+        const SizedBox(height: 12),
+        _buildMuseumButton(Icons.table_view_rounded, 'EXPORT EXCEL', _downloadExcel),
         if (isOwner) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                child: _buildActionButton(
-                  Icons.edit_rounded,
-                  'Edit Recipe',
-                  const Color(0xFF3498DB),
-                  _editRecipe,
-                ),
-              ),
+              Expanded(child: _buildMuseumButton(Icons.edit_rounded, 'EDIT', _editRecipe, isBrief: true)),
               const SizedBox(width: 12),
-              Expanded(
-                child: _buildActionButton(
-                  Icons.delete_outline_rounded,
-                  'Delete',
-                  const Color(0xFFE74C3C),
-                  _deleteRecipe,
-                  outline: true,
-                ),
-              ),
+              Expanded(child: _buildMuseumButton(Icons.delete_outline_rounded, 'DELETE', _deleteRecipe, isBrief: true, isDestructive: true)),
             ],
           ),
         ],
@@ -840,53 +636,37 @@ ${_recipe.process}
     );
   }
 
-  Widget _buildExportButton(
-      IconData icon, String label, Color color, VoidCallback onTap) {
-    return ElevatedButton.icon(
+  Widget _buildMuseumButton(IconData icon, String label, VoidCallback onTap, {bool isBrief = false, bool isDestructive = false}) {
+    return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),
       label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: color,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: color.withOpacity(0.2)),
-        ),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isDestructive ? const Color(0xFFE74C3C) : const Color(0xFF5D4037),
+        padding: EdgeInsets.symmetric(vertical: isBrief ? 16 : 22),
+        minimumSize: const Size(double.infinity, 0),
+        side: BorderSide(color: isDestructive ? const Color(0xFFE74C3C).withOpacity(0.2) : Colors.black.withOpacity(0.05)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5),
       ),
     );
   }
 
-  Widget _buildActionButton(
-      IconData icon, String label, Color color, VoidCallback onTap,
-      {bool outline = false}) {
-    if (outline) {
-      return OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: 18),
-        label: Text(label),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: color,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          side: BorderSide(color: color),
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
+  Widget _buildRecipeImage(String path) {
+    final imageUrl = ApiService.getImageUrl(path);
+    if (imageUrl.startsWith('http')) {
+      return CachedNetworkImage(
+        imageUrl: imageUrl,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => Container(color: Colors.grey.shade100),
+        errorWidget: (_, __, ___) => Container(color: Colors.grey.shade100, child: const Icon(Icons.broken_image)),
+      );
+    } else {
+      return Image.file(
+        File(imageUrl),
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade100, child: const Icon(Icons.broken_image)),
       );
     }
-    return ElevatedButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 18),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
   }
 }

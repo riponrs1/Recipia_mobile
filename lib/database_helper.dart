@@ -33,7 +33,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 8,
+      version: 9,
       onCreate: (db, version) async {
         await _createTables(db);
       },
@@ -115,6 +115,14 @@ class DatabaseHelper {
             )
           ''');
         }
+        if (oldVersion < 9) {
+          try {
+            await db.execute(
+                'ALTER TABLE recipes ADD COLUMN cooked_count INTEGER DEFAULT 0');
+          } catch (e) {
+            debugPrint('Error adding column cooked_count: $e');
+          }
+        }
       },
     );
   }
@@ -133,7 +141,8 @@ class DatabaseHelper {
         item_photo TEXT,
         created_at TEXT,
         deleted_at TEXT,
-        is_pending INTEGER DEFAULT 0
+        is_pending INTEGER DEFAULT 0,
+        cooked_count INTEGER DEFAULT 0
       )
     ''');
     await db.execute('''
@@ -327,6 +336,34 @@ class DatabaseHelper {
     return await db.query('ingredients', orderBy: 'name ASC');
   }
 
+  Future<Map<String, dynamic>?> getIngredientByName(String name) async {
+    final db = await database;
+    final results = await db.query(
+      'ingredients',
+      where: 'name = ?',
+      whereArgs: [name],
+      limit: 1,
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  Future<int> saveLocalIngredient(Map<String, dynamic> ingredient) async {
+    final db = await database;
+    return await db.insert('ingredients', ingredient,
+        conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
+  Future<int> updateLocalIngredient(int id, Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.update('ingredients', data,
+        where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<int> deleteLocalIngredient(int id) async {
+    final db = await database;
+    return await db.delete('ingredients', where: 'id = ?', whereArgs: [id]);
+  }
+
   Future<void> cacheData(String key, dynamic data) async {
     final db = await database;
     await db.insert(
@@ -386,6 +423,41 @@ class DatabaseHelper {
     final res = await db.rawQuery(
         'SELECT DISTINCT brand_name FROM recipes WHERE brand_name IS NOT NULL AND brand_name != "" ORDER BY brand_name ASC');
     return res.map((r) => r['brand_name'] as String).toList();
+  }
+
+  Future<Map<String, dynamic>> getProfileStats() async {
+    final db = await database;
+    final recipeCount = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM recipes WHERE deleted_at IS NULL')) ??
+        0;
+    final pantryValueRes =
+        await db.rawQuery('SELECT SUM(price) as total FROM ingredients');
+    final pantryValue = (pantryValueRes.first['total'] ?? 0.0) as double;
+    final sectionCount = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM recipe_sections')) ??
+        0;
+
+    return {
+      'recipeCount': recipeCount,
+      'pantryValue': pantryValue,
+      'sectionCount': sectionCount,
+    };
+  }
+
+  Future<void> incrementCookedCount(int recipeId) async {
+    final db = await database;
+    await db.rawUpdate(
+      'UPDATE recipes SET cooked_count = cooked_count + 1 WHERE id = ?',
+      [recipeId],
+    );
+  }
+
+  Future<int> getTotalCookedCount() async {
+    final db = await database;
+    final res = await db.rawQuery('SELECT SUM(cooked_count) as total FROM recipes');
+    final count = res.first['total'];
+    if (count == null) return 0;
+    return count as int;
   }
 
   Future<void> importDatabase(String sourcePath) async {

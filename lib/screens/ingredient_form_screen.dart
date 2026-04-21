@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import '../api_service.dart';
-import 'ingredients_screen.dart'; // For Ingredient class
+import '../models/ingredient.dart';
 
 class IngredientFormScreen extends StatefulWidget {
-  final Ingredient? ingredient; // If null, creating new
+  final Ingredient? ingredient;
 
   const IngredientFormScreen({super.key, this.ingredient});
 
@@ -22,7 +22,7 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
   late TextEditingController _unitController;
   late TextEditingController _caloriesController;
   
-  String _selectedCategory = 'Dry Goods'; // Default
+  String _selectedCategory = 'Dry Goods';
   
   final List<String> _categories = [
     'Dry Goods', 'Dairy', 'Produce', 'Meat', 'Seafood', 'Frozen', 'Canned',
@@ -41,9 +41,6 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
     if (widget.ingredient != null) {
       if (_categories.contains(widget.ingredient!.category)) {
         _selectedCategory = widget.ingredient!.category;
-      } else {
-        // Handle case where category might not match exactly or is new
-        _selectedCategory = _categories.first; 
       }
     }
   }
@@ -73,144 +70,210 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
 
     String? error;
     if (widget.ingredient == null) {
-       // Create
-       // We need an API method for createIngredient
        error = await _apiService.createIngredient(data);
     } else {
-       // Update
        error = await _apiService.updateIngredient(widget.ingredient!.id, data);
     }
 
     setState(() => _isLoading = false);
 
     if (error == null) {
-      if (mounted) {
-         Navigator.of(context).pop(true); // Return true to indicate refresh needed
-      }
+      if (mounted) Navigator.of(context).pop(true);
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(error),
+          backgroundColor: const Color(0xFFE74C3C),
+          behavior: SnackBarBehavior.floating,
+        ));
       }
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isEdit = widget.ingredient != null;
     return Scaffold(
+      backgroundColor: const Color(0xFFFDFBF7),
       appBar: AppBar(
-        title: Text(widget.ingredient == null ? 'Add Ingredient' : 'Edit Ingredient'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
+        title: Text(isEdit ? 'Edit Ingredient' : 'New Ingredient', 
+          style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF5D4037), size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      backgroundColor: const Color(0xFFF5F7FA),
       body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildTextField(
-                  controller: _nameController,
-                  label: 'Name',
-                  icon: Icons.label,
-                  validator: (val) => val == null || val.isEmpty ? 'Name is required' : null,
-                ),
-                const SizedBox(height: 16),
-                
-                DropdownButtonFormField<String>(
-                  value: _selectedCategory,
-                  decoration: InputDecoration(
-                    labelText: 'Category',
-                    prefixIcon: const Icon(Icons.category, color: Colors.grey),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    filled: true,
-                    fillColor: Colors.white,
-                  ),
-                  items: _categories.map((cat) => DropdownMenuItem(
-                    value: cat,
-                    child: Text(cat),
-                  )).toList(),
-                  onChanged: (val) => setState(() => _selectedCategory = val!),
-                ),
-                const SizedBox(height: 16),
-                
-                _buildTextField(
-                  controller: _brandController,
-                  label: 'Brand (Optional)',
-                  icon: Icons.branding_watermark,
-                ),
-                const SizedBox(height: 16),
-                
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildTextField(
-                        controller: _priceController,
-                        label: 'Price',
-                        icon: Icons.attach_money,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      ),
+        padding: const EdgeInsets.all(24),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeaderTitle(isEdit ? 'Refine Your Item' : 'Add to Pantry'),
+              const SizedBox(height: 24),
+              _buildModernField(
+                controller: _nameController,
+                label: 'Ingredient Name',
+                hint: 'e.g. Organic Flour',
+                icon: Icons.restaurant_rounded,
+                validator: (val) => val == null || val.isEmpty ? 'Name is required' : null,
+              ),
+              const SizedBox(height: 20),
+              _buildCategoryDropdown(),
+              const SizedBox(height: 20),
+              _buildModernField(
+                controller: _brandController,
+                label: 'Brand / Producer',
+                hint: 'Optional',
+                icon: Icons.store_rounded,
+              ),
+              const SizedBox(height: 24),
+              const Text('Calculations Details', 
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF5D4037))),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildModernField(
+                      controller: _priceController,
+                      label: 'Price',
+                      hint: '0.00',
+                      icon: Icons.payments_rounded,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildTextField(
-                        controller: _unitController,
-                        label: 'Unit (kg, L)',
-                        icon: Icons.scale,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                _buildTextField(
-                  controller: _caloriesController,
-                  label: 'Calories (kcal)',
-                  icon: Icons.local_fire_department,
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 32),
-                
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: const Color(0xFFE74C3C),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: _isLoading 
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text(widget.ingredient == null ? 'Add Ingredient' : 'Update Ingredient', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _buildModernField(
+                      controller: _unitController,
+                      label: 'Unit',
+                      hint: 'kg / L',
+                      icon: Icons.scale_rounded,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildModernField(
+                controller: _caloriesController,
+                label: 'Calories (kcal)',
+                hint: 'per unit',
+                icon: Icons.local_fire_department_rounded,
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 48),
+              _buildSubmitButton(),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTextField({
+  Widget _buildHeaderTitle(String title) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF2D3436), letterSpacing: -1)),
+        const SizedBox(height: 4),
+        Container(width: 60, height: 4, decoration: BoxDecoration(color: const Color(0xFFFAB1A0), borderRadius: BorderRadius.circular(2))),
+      ],
+    );
+  }
+
+  Widget _buildModernField({
     required TextEditingController controller,
     required String label,
+    required String hint,
     required IconData icon,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
   }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon, color: Colors.grey),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        filled: true,
-        fillColor: Colors.white,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF636E72))),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          validator: validator,
+          style: const TextStyle(fontWeight: FontWeight.w600, color: Color(0xFF2D3436)),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(color: Colors.brown.shade100),
+            prefixIcon: Icon(icon, color: const Color(0xFFFAB1A0), size: 22),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide(color: Colors.black.withOpacity(0.05)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide(color: Colors.black.withOpacity(0.05)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: const BorderSide(color: Color(0xFFFAB1A0), width: 2),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Category', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: Color(0xFF636E72))),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _selectedCategory,
+          items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
+          onChanged: (val) => setState(() => _selectedCategory = val!),
+          icon: const Icon(Icons.expand_more_rounded, color: Color(0xFFFAB1A0)),
+          dropdownColor: Colors.white,
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.white,
+            prefixIcon: const Icon(Icons.category_rounded, color: Color(0xFFFAB1A0), size: 22),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide(color: Colors.black.withOpacity(0.05)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(20),
+              borderSide: BorderSide(color: Colors.black.withOpacity(0.05)),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton(
+        onPressed: _isLoading ? null : _submit,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF5D4037),
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          elevation: 4,
+          shadowColor: const Color(0xFF5D4037).withOpacity(0.4),
+        ),
+        child: _isLoading 
+            ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+            : Text(widget.ingredient == null ? 'Create Ingredient' : 'Update Pantry', 
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.white)),
       ),
-      keyboardType: keyboardType,
-      validator: validator,
     );
   }
 }

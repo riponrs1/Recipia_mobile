@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dashboard_screen.dart';
@@ -46,32 +47,27 @@ class _MainScreenState extends State<MainScreen> {
   Widget build(BuildContext context) {
     // Use PopScope for Android 14+ predictive back support
     return PopScope(
-      canPop: false, // We manually handle the back gesture
+      canPop: false,
       onPopInvokedWithResult: (didPop, result) async {
         if (didPop) return;
 
-        // Try to pop the nested navigator
         final NavigatorState? currentNavigator =
             _navigatorKeys[_currentIndex].currentState;
 
         if (currentNavigator != null && await currentNavigator.maybePop()) {
-          // Nested navigator popped a route (e.g., Detail -> List)
-          // We stay on the same screen (step-by-step)
           return;
         }
 
-        // If at the root of the current tab...
         if (_currentIndex != 0) {
-          // Go back to Home tab
           setState(() {
             _currentIndex = 0;
           });
         } else {
-          // We are at Home (Dashboard) root. Exit the app.
           SystemNavigator.pop();
         }
       },
       child: Scaffold(
+        extendBody: true,
         body: IndexedStack(
           index: _currentIndex,
           children: [
@@ -81,31 +77,62 @@ class _MainScreenState extends State<MainScreen> {
             _buildNavigator(3, const ProfileScreen()),
           ],
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: _currentIndex,
-          selectedItemColor: const Color(0xFFE74C3C),
-          unselectedItemColor: Colors.grey,
-          showUnselectedLabels: true,
-          onTap: _onItemTapped,
-          items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'Home',
+        bottomNavigationBar: _buildGlassNavigationBar(),
+      ),
+    );
+  }
+
+  Widget _buildGlassNavigationBar() {
+    return Container(
+      height: 70,
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white.withOpacity(0.5)),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF5D4037).withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.menu_book),
-              label: 'Recipes',
+            child: BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              currentIndex: _currentIndex,
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              selectedItemColor: const Color(0xFF5D4037),
+              unselectedItemColor: Colors.grey.shade400,
+              showSelectedLabels: true,
+              showUnselectedLabels: false,
+              onTap: _onItemTapped,
+              items: const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.grid_view_rounded),
+                  label: 'Hub',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.menu_book_rounded),
+                  label: 'Recipes',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.kitchen_rounded),
+                  label: 'Pantry',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person_rounded),
+                  label: 'Profile',
+                ),
+              ],
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.kitchen),
-              label: 'Ingredients',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.person),
-              label: 'Profile',
-            ),
-          ],
+          ),
         ),
       ),
     );

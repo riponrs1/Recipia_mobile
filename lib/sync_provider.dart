@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'google_drive_service.dart';
 import 'database_helper.dart';
+import 'api_service.dart';
 
 enum SyncStatus { idle, syncing, success, error }
 
@@ -10,6 +11,9 @@ class SyncProvider with ChangeNotifier {
 
   SyncStatus _status = SyncStatus.idle;
   SyncStatus get status => _status;
+
+  bool _isDownloadingAll = false;
+  bool get isDownloadingAll => _isDownloadingAll;
 
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
@@ -233,5 +237,27 @@ class SyncProvider with ChangeNotifier {
     _localDatabaseSize = await _driveService.getLocalDatabaseSize();
     _localPhotoCount = await _driveService.getLocalPhotoCount();
     notifyListeners();
+  }
+
+  Future<String?> downloadAllFromServer() async {
+    _isDownloadingAll = true;
+    _status = SyncStatus.syncing;
+    notifyListeners();
+
+    try {
+      final error = await ApiService().fetchAllDataForOffline();
+      if (error == null) {
+        _status = SyncStatus.success;
+        // Update local stats
+        _localDatabaseSize = await _driveService.getLocalDatabaseSize();
+      } else {
+        _status = SyncStatus.error;
+        _errorMessage = error;
+      }
+      return error;
+    } finally {
+      _isDownloadingAll = false;
+      notifyListeners();
+    }
   }
 }

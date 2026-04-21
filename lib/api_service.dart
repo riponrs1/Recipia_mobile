@@ -207,8 +207,7 @@ class ApiService {
       }
     } catch (e) {
       final localRecipes = await DatabaseHelper().getCachedRecipes();
-      if (localRecipes.isNotEmpty) return localRecipes;
-      throw Exception('Connection error: $e');
+      return localRecipes; // Returns cached recipes or empty list if none
     }
   }
 
@@ -232,8 +231,7 @@ class ApiService {
       }
     } catch (e) {
       final localRecipes = await DatabaseHelper().getCachedRecipes();
-      if (localRecipes.isNotEmpty) return localRecipes;
-      rethrow;
+      return localRecipes;
     }
   }
 
@@ -444,12 +442,26 @@ class ApiService {
               allowFallback: false);
         } else if (action == 'DELETE_RECIPE') {
           error = await _syncDeleteRecipe(targetId);
+        } else if (action == 'CREATE_INGREDIENT') {
+          error = await createIngredient(data, allowFallback: false);
+        } else if (action == 'UPDATE_INGREDIENT') {
+          error = await updateIngredient(targetId, data, allowFallback: false);
+        } else if (action == 'DELETE_INGREDIENT') {
+          error = await deleteIngredient(targetId, allowFallback: false);
+        } else if (action == 'CREATE_SECTION') {
+          error = await createSection(data['name'], allowFallback: false);
+        } else if (action == 'UPDATE_SECTION') {
+          error = await updateSection(targetId, data['name'], allowFallback: false);
+        } else if (action == 'DELETE_SECTION') {
+          error = await deleteSection(targetId, allowFallback: false);
         }
 
         if (error == null) {
           await DatabaseHelper().deletePendingSync(item['id']);
-          if (action == 'CREATE_RECIPE') {
-            await DatabaseHelper().deleteLocalRecipe(targetId);
+          if (action == 'CREATE_RECIPE' || action == 'CREATE_INGREDIENT' || action == 'CREATE_SECTION') {
+            if (action == 'CREATE_RECIPE') await DatabaseHelper().deleteLocalRecipe(targetId);
+            if (action == 'CREATE_INGREDIENT') await DatabaseHelper().deleteLocalIngredient(targetId);
+            if (action == 'CREATE_SECTION') await DatabaseHelper().deleteLocalSection(targetId);
           }
         }
       } catch (e) {
@@ -503,12 +515,12 @@ class ApiService {
       }
     } catch (e) {
       final local = await DatabaseHelper().getCachedIngredients();
-      if (local.isNotEmpty) return local;
-      throw Exception('Connection error: $e');
+      return local;
     }
   }
 
-  Future<String?> createIngredient(Map<String, dynamic> data) async {
+  Future<String?> createIngredient(Map<String, dynamic> data,
+      {bool allowFallback = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
@@ -522,17 +534,33 @@ class ApiService {
         body: jsonEncode(data),
       );
       if (response.statusCode == 201) {
+        final resp = jsonDecode(response.body);
+        await DatabaseHelper().saveLocalIngredient(resp);
         return null;
       } else {
         final resp = jsonDecode(response.body);
         return resp['message'] ?? 'Failed to create ingredient';
       }
     } catch (e) {
-      return 'Error: $e';
+      if (!allowFallback) rethrow;
+
+      final localId = DateTime.now().millisecondsSinceEpoch;
+      final localData = Map<String, dynamic>.from(data);
+      localData['id'] = localId; // Temporary ID
+      await DatabaseHelper().saveLocalIngredient(localData);
+
+      await DatabaseHelper().addPendingSync({
+        'action': 'CREATE_INGREDIENT',
+        'data': jsonEncode(data),
+        'target_id': localId,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return null; // Return null so the UI thinks it succeeded (offline mode)
     }
   }
 
-  Future<String?> updateIngredient(int id, Map<String, dynamic> data) async {
+  Future<String?> updateIngredient(int id, Map<String, dynamic> data,
+      {bool allowFallback = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
@@ -546,17 +574,28 @@ class ApiService {
         body: jsonEncode(data),
       );
       if (response.statusCode == 200) {
+        final resp = jsonDecode(response.body);
+        await DatabaseHelper().saveLocalIngredient(resp);
         return null;
       } else {
         final resp = jsonDecode(response.body);
         return resp['message'] ?? 'Failed to update ingredient';
       }
     } catch (e) {
-      return 'Error: $e';
+      if (!allowFallback) rethrow;
+
+      await DatabaseHelper().updateLocalIngredient(id, data);
+      await DatabaseHelper().addPendingSync({
+        'action': 'UPDATE_INGREDIENT',
+        'target_id': id,
+        'data': jsonEncode(data),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return null;
     }
   }
 
-  Future<String?> deleteIngredient(int id) async {
+  Future<String?> deleteIngredient(int id, {bool allowFallback = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
@@ -568,41 +607,20 @@ class ApiService {
         },
       );
       if (response.statusCode == 200) {
+        await DatabaseHelper().deleteLocalIngredient(id);
         return null;
       } else {
         return 'Failed to delete ingredient';
       }
     } catch (e) {
-      return 'Error: $e';
-    }
-  }
+      if (!allowFallback) rethrow;
 
-  Future<Map<String, dynamic>?> analyzeRecipeImage(String imagePath) async {
-    final prefs = await SharedPreferences.getInstance();
-    final token = prefs.getString('token');
-
-    try {
-      var request =
-          http.MultipartRequest('POST', Uri.parse('$baseUrl/recipes-analyze'));
-      request.headers.addAll({
-        'Authorization': 'Bearer $token',
-        'Accept': 'application/json',
+      await DatabaseHelper().deleteLocalIngredient(id);
+      await DatabaseHelper().addPendingSync({
+        'action': 'DELETE_INGREDIENT',
+        'target_id': id,
+        'created_at': DateTime.now().toIso8601String(),
       });
-
-      request.files.add(await http.MultipartFile.fromPath('image', imagePath));
-
-      final streamedResponse = await request.send();
-      final response = await http.Response.fromStream(streamedResponse);
-
-      if (response.statusCode == 200) {
-        return jsonDecode(response.body);
-      } else {
-        final resp = jsonDecode(response.body);
-        debugPrint('AI Error: ${resp['message']}');
-        return null;
-      }
-    } catch (e) {
-      debugPrint('AI Error: $e');
       return null;
     }
   }
@@ -632,7 +650,7 @@ class ApiService {
     }
   }
 
-  Future<String?> createSection(String name) async {
+  Future<String?> createSection(String name, {bool allowFallback = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
@@ -645,14 +663,36 @@ class ApiService {
         },
         body: jsonEncode({'name': name}),
       );
-      if (response.statusCode == 201) return null;
+      if (response.statusCode == 201) {
+        final resp = jsonDecode(response.body);
+        await DatabaseHelper().saveLocalSection({
+          'server_id': resp['id'],
+          'name': resp['name'],
+          'created_at': resp['created_at'],
+        });
+        return null;
+      }
       return 'Failed to create section';
     } catch (e) {
-      return 'Error: $e';
+      if (!allowFallback) rethrow;
+
+      final localId = DateTime.now().millisecondsSinceEpoch;
+      await DatabaseHelper().saveLocalSection({
+        'name': name,
+        'created_at': DateTime.now().toIso8601String(),
+        'sort_order': 99,
+      });
+      await DatabaseHelper().addPendingSync({
+        'action': 'CREATE_SECTION',
+        'data': jsonEncode({'name': name}),
+        'target_id': localId,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return null;
     }
   }
 
-  Future<String?> deleteSection(int id) async {
+  Future<String?> deleteSection(int id, {bool allowFallback = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
@@ -663,14 +703,26 @@ class ApiService {
           'Authorization': 'Bearer $token',
         },
       );
-      if (response.statusCode == 200) return null;
+      if (response.statusCode == 200) {
+        await DatabaseHelper().deleteLocalSection(id);
+        return null;
+      }
       return 'Failed to delete section';
     } catch (e) {
-      return 'Error: $e';
+      if (!allowFallback) rethrow;
+
+      await DatabaseHelper().deleteLocalSection(id);
+      await DatabaseHelper().addPendingSync({
+        'action': 'DELETE_SECTION',
+        'target_id': id,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return null;
     }
   }
 
-  Future<String?> updateSection(int id, String name) async {
+  Future<String?> updateSection(int id, String name,
+      {bool allowFallback = true}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
@@ -683,10 +735,22 @@ class ApiService {
         },
         body: jsonEncode({'name': name}),
       );
-      if (response.statusCode == 200) return null;
+      if (response.statusCode == 200) {
+        await DatabaseHelper().updateLocalSection(id, name);
+        return null;
+      }
       return 'Failed to update section';
     } catch (e) {
-      return 'Error: $e';
+      if (!allowFallback) rethrow;
+
+      await DatabaseHelper().updateLocalSection(id, name);
+      await DatabaseHelper().addPendingSync({
+        'action': 'UPDATE_SECTION',
+        'target_id': id,
+        'data': jsonEncode({'name': name}),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return null;
     }
   }
 
@@ -808,6 +872,19 @@ class ApiService {
     } catch (e) {
       debugPrint('Error saving file permanently: $e');
       return path;
+    }
+  }
+
+  Future<String?> fetchAllDataForOffline() async {
+    try {
+      // Fetch everything sequentially to ensure local DB cache is populated
+      await getRecipes();
+      await getIngredients();
+      await getSections();
+      await getUser();
+      return null;
+    } catch (e) {
+      return e.toString();
     }
   }
 }
