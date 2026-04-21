@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -30,11 +31,30 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   late Recipe _recipe;
   double _batchMultiplier = 1.0;
   List<Map<String, dynamic>> _parsedIngredients = [];
+  Set<int> _checkedIngredients = {};
   int? _currentUserId;
   bool _isLoading = false;
   bool _isFetchingDetails = true;
 
   late TextEditingController _batchController;
+
+  List<String> _getSteps() {
+    return _recipe.process
+        .split('\n')
+        .where((s) => s.trim().isNotEmpty)
+        .map((s) => s.trim())
+        .toList();
+  }
+
+  void _toggleIngredient(int index) {
+    setState(() {
+      if (_checkedIngredients.contains(index)) {
+        _checkedIngredients.remove(index);
+      } else {
+        _checkedIngredients.add(index);
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -385,6 +405,7 @@ ${_recipe.process}
     bool isOwner = _currentUserId == _recipe.userId;
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
+      extendBody: true, // Allow content to flow behind the glass bar
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF5D4037)))
           : CustomScrollView(
@@ -413,7 +434,7 @@ ${_recipe.process}
                           _buildPreparationSection(),
                           const SizedBox(height: 48),
                           _buildActionButtons(isOwner),
-                          const SizedBox(height: 120),
+                          const SizedBox(height: 160), // Extra space for glass bar
                         ],
                       ),
                     ),
@@ -421,42 +442,64 @@ ${_recipe.process}
                 ),
               ],
             ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.fromLTRB(24, 12, 24, 32),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 20, offset: const Offset(0, -5)),
-          ],
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: _markAsCooked,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFAB1A0),
-                  foregroundColor: const Color(0xFF5D4037),
-                  padding: const EdgeInsets.symmetric(vertical: 20),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                  elevation: 0,
+      bottomNavigationBar: _buildFloatingGlassBar(),
+    );
+  }
+
+  Widget _buildFloatingGlassBar() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      height: 75,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(30),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.85),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white.withOpacity(0.5)),
+              boxShadow: [
+                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10)),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAB1A0),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: _markAsCooked,
+                        borderRadius: BorderRadius.circular(20),
+                        child: const Center(
+                          child: Text('MARK AS COOKED', 
+                            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037), letterSpacing: 1, fontSize: 13)),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-                child: const Text('MARK AS COOKED', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
-              ),
+                const SizedBox(width: 12),
+                Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF5D4037),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: IconButton(
+                    icon: const Icon(Icons.restaurant_rounded, color: Colors.white, size: 20),
+                    onPressed: () {},
+                    padding: const EdgeInsets.all(18),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: const Color(0xFF5D4037),
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.restaurant_rounded, color: Colors.white),
-                onPressed: () {},
-                padding: const EdgeInsets.all(20),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -464,25 +507,50 @@ ${_recipe.process}
 
   Widget _buildMuseumAppBar() {
     return SliverAppBar(
-      expandedHeight: 320.0,
+      expandedHeight: 340.0,
       elevation: 0,
       pinned: true,
+      stretch: true, // Allow stretch effect
       backgroundColor: const Color(0xFF5D4037),
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+        icon: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.black.withOpacity(0.2), shape: BoxShape.circle),
+          child: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 18),
+        ),
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.share_rounded, color: Colors.white),
+          icon: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.2), shape: BoxShape.circle),
+            child: const Icon(Icons.share_rounded, color: Colors.white, size: 18),
+          ),
           onPressed: _shareRecipe,
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 16),
       ],
       flexibleSpace: FlexibleSpaceBar(
-        background: _recipe.itemPhoto != null
-            ? _buildRecipeImage(_recipe.itemPhoto!)
-            : Container(color: const Color(0xFF5D4037)),
+        stretchModes: const [StretchMode.zoomBackground, StretchMode.blurBackground],
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            _recipe.itemPhoto != null
+                ? _buildRecipeImage(_recipe.itemPhoto!)
+                : Container(color: const Color(0xFF5D4037)),
+            const DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.black38, Colors.transparent, Colors.transparent],
+                  stops: [0.0, 0.3, 1.0],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -582,36 +650,93 @@ ${_recipe.process}
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('INGREDIENTS', 
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('INGREDIENTS', 
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
+            Text('${_checkedIngredients.length}/${_parsedIngredients.length} PREPPED', 
+              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFFB2BEC3))),
+          ],
+        ),
         const SizedBox(height: 16),
-        ..._parsedIngredients.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              Container(width: 4, height: 4, decoration: const BoxDecoration(color: Color(0xFFFAB1A0), shape: BoxShape.circle)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(item['name'] ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF2D3436))),
+        ..._parsedIngredients.asMap().entries.map((entry) {
+          final i = entry.key;
+          final item = entry.value;
+          final isChecked = _checkedIngredients.contains(i);
+          
+          return GestureDetector(
+            onTap: () => _toggleIngredient(i),
+            behavior: HitTestBehavior.opaque,
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: isChecked ? 0.5 : 1.0,
+                child: Row(
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: isChecked ? const Color(0xFF5D4037) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: isChecked ? const Color(0xFF5D4037) : const Color(0xFFFAB1A0).withOpacity(0.4)),
+                      ),
+                      child: isChecked ? const Icon(Icons.check, size: 12, color: Colors.white) : null,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        item['name'] ?? '', 
+                        style: TextStyle(
+                          fontSize: 15, 
+                          fontWeight: isChecked ? FontWeight.w500 : FontWeight.w700, 
+                          color: const Color(0xFF2D3436),
+                          decoration: isChecked ? TextDecoration.lineThrough : null,
+                        )
+                      ),
+                    ),
+                    Text('${_formatQty(item['qty'])} ${item['unit'] ?? ''}', 
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+                  ],
+                ),
               ),
-              Text('${_formatQty(item['qty'])} ${item['unit'] ?? ''}', 
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
-            ],
-          ),
-        )),
+            ),
+          );
+        }),
       ],
     );
   }
 
   Widget _buildPreparationSection() {
+    final steps = _getSteps();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('THE PROCESS', 
+        const Text('EXHIBITION STAGES', 
           style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
-        const SizedBox(height: 16),
-        Text(_recipe.process, 
-          style: const TextStyle(fontSize: 16, height: 1.8, color: Color(0xFF636E72))),
+        const SizedBox(height: 20),
+        ...steps.asMap().entries.map((entry) {
+          final i = entry.key;
+          final step = entry.value;
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 28),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text((i + 1).toString().padLeft(2, '0'), 
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF5D4037), letterSpacing: -0.5)),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Text(step, 
+                    style: const TextStyle(fontSize: 16, height: 1.7, color: Color(0xFF636E72), fontWeight: FontWeight.w500)),
+                ),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }
