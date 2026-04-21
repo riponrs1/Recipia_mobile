@@ -224,28 +224,28 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: const Color(0xFFFDFBF7),
       appBar: AppBar(
-        title: const Text('Arrange Categories',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 20)),
+        title: const Text('CATEGORIES',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.white)),
         centerTitle: true,
-        backgroundColor: Colors.white,
+        backgroundColor: const Color(0xFF5D4037),
         elevation: 0,
-        foregroundColor: const Color(0xFF1E293B),
+        foregroundColor: Colors.white,
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFFE74C3C)))
+              child: CircularProgressIndicator(color: Color(0xFF5D4037)))
           : _sections.isEmpty
               ? _buildEmptyState()
               : ReorderableListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 160),
                   itemCount: _sections.length,
                   onReorder: _onReorder,
                   proxyDecorator: (widget, index, animation) {
                     return Material(
                       elevation: 8,
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(24),
                       child: widget,
                     );
                   },
@@ -257,59 +257,57 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
 
                     return Container(
                       key: ValueKey(section['id']),
-                      margin: const EdgeInsets.only(bottom: 12),
+                      margin: const EdgeInsets.only(bottom: 16),
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(24),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.03),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
                           ),
                         ],
                       ),
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
+                            horizontal: 20, vertical: 12),
                         leading: Container(
-                          padding: const EdgeInsets.all(10),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: isSystem
-                                ? const Color(0xFFEFF6FF)
-                                : const Color(0xFFFFF7ED),
-                            borderRadius: BorderRadius.circular(12),
+                            color: const Color(0xFF5D4037).withOpacity(0.05),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           child: Icon(
                             isSystem
-                                ? Icons.dashboard_customize_rounded
-                                : Icons.category_rounded,
-                            color: isSystem
-                                ? const Color(0xFF3B82F6)
-                                : const Color(0xFFF97316),
+                                ? Icons.auto_awesome_mosaic_rounded
+                                : Icons.bookmark_rounded,
+                            color: const Color(0xFF5D4037),
                             size: 20,
                           ),
                         ),
                         title: Text(
-                          section['name'],
+                          section['name'].toString().toUpperCase(),
                           style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF1E293B),
-                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                            color: Color(0xFF5D4037),
+                            fontSize: 13,
+                            letterSpacing: 0.5,
                           ),
                         ),
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
                             isSystem
-                                ? 'Global Category'
+                                ? 'SYSTEM CATALOG'
                                 : (!isInServer
-                                    ? 'Local Draft'
-                                    : 'Personal Category'),
-                            style: TextStyle(
-                              color: Colors.grey.shade500,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500,
+                                    ? 'LOCAL DRAFT'
+                                    : 'PERSONAL COLLECTION'),
+                            style: const TextStyle(
+                              color: Color(0xFFFAB1A0),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1,
                             ),
                           ),
                         ),
@@ -318,29 +316,25 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
                           children: [
                             if (isEditable) ...[
                               IconButton(
-                                icon: const Icon(Icons.edit_rounded,
-                                    size: 20, color: Color(0xFF64748B)),
+                                icon: const Icon(Icons.edit_note_rounded,
+                                    size: 22, color: Color(0xFFB2BEC3)),
                                 onPressed: () => _editSection(
                                     section['id'], section['name']),
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(8),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline_rounded,
-                                    size: 20, color: Color(0xFFE74C3C)),
+                                    size: 20, color: Color(0xFFFAB1A0)),
                                 onPressed: () => _deleteSection(section['id']),
-                                constraints: const BoxConstraints(),
-                                padding: const EdgeInsets.all(8),
                               ),
                             ] else
                               const Padding(
                                 padding: EdgeInsets.all(8.0),
                                 child: Icon(Icons.lock_outline_rounded,
-                                    size: 18, color: Color(0xFF94A3B8)),
+                                    size: 18, color: Color(0xFFCBD5E1)),
                               ),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.drag_indicator_rounded,
-                                color: Color(0xFFCBD5E1)),
+                            const SizedBox(width: 4),
+                            const Icon(Icons.drag_handle_rounded,
+                                color: Color(0xFFE2E8F0)),
                           ],
                         ),
                       ),
@@ -349,11 +343,12 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
                 ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _addSection,
-        label: const Text('NEW CATEGORY',
-            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-        icon: const Icon(Icons.add_rounded),
-        backgroundColor: const Color(0xFF1E293B),
-        elevation: 4,
+        label: const Text('CREATE CATEGORY',
+            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, color: Colors.white)),
+        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        backgroundColor: const Color(0xFF5D4037),
+        elevation: 10,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
@@ -364,13 +359,13 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.layers_clear_rounded,
-              size: 80, color: Colors.grey.shade200),
-          const SizedBox(height: 20),
-          const Text('No categories yet',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 10),
-          Text('Create your first category to start organizing.',
-              style: TextStyle(color: Colors.grey.shade500)),
+              size: 80, color: const Color(0xFF5D4037).withOpacity(0.1)),
+          const SizedBox(height: 24),
+          const Text('CLEAN ANTHOLOGY',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFFFAB1A0))),
+          const SizedBox(height: 12),
+          Text('Define your first culinary section.',
+              style: TextStyle(color: Colors.brown.shade200, fontSize: 14)),
         ],
       ),
     );

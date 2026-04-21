@@ -95,9 +95,23 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           _parseIngredients();
           _isFetchingDetails = false;
         });
+        // FIX: Auto-cache full details for offline use
+        await DatabaseHelper().saveLocalRecipe(data);
       }
     } catch (e) {
       debugPrint('Error refreshing recipe: $e');
+      // Offline fallback: Attempt to load full recipe from local database
+      try {
+        final localData = await DatabaseHelper().getRecipeById(_recipe.id);
+        if (localData != null && mounted) {
+          setState(() {
+            _recipe = Recipe.fromJson(localData);
+            _parseIngredients();
+          });
+        }
+      } catch (dbError) {
+        debugPrint('DB Fallback Error: $dbError');
+      }
       if (mounted) setState(() => _isFetchingDetails = false);
     }
   }
@@ -117,12 +131,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
 
   String _formatBatch(double val) {
     if (val % 1 == 0) return val.toInt().toString();
-    return val.toString();
+    return val.toStringAsFixed(1);
   }
 
   void _updateBatch(double delta) {
     setState(() {
-      _batchMultiplier = (_batchMultiplier + delta).clamp(0.5, 10.0);
+      _batchMultiplier = (_batchMultiplier + delta).clamp(0.5, 100.0);
       _batchController.text = _formatBatch(_batchMultiplier);
     });
   }
@@ -378,27 +392,6 @@ ${_recipe.process}
 
 
 
-  Future<void> _markAsCooked() async {
-    setState(() => _isLoading = true);
-    await DatabaseHelper().incrementCookedCount(_recipe.id);
-    setState(() => _isLoading = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: Colors.white),
-              const SizedBox(width: 12),
-              Text('MASTERPIECE RECORDED: ${_recipe.name.toUpperCase()}'),
-            ],
-          ),
-          backgroundColor: const Color(0xFF5D4037),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -411,7 +404,7 @@ ${_recipe.process}
           : CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                _buildMuseumAppBar(),
+                _buildRecipeAppBar(),
                 SliverToBoxAdapter(
                   child: Container(
                     decoration: const BoxDecoration(
@@ -425,7 +418,7 @@ ${_recipe.process}
                         children: [
                           _buildHeaderSection(),
                           const SizedBox(height: 24),
-                          _buildMuseumMetricBar(),
+                          _buildMetricBar(),
                           const SizedBox(height: 32),
                           _buildBatchControl(),
                           const SizedBox(height: 32),
@@ -434,7 +427,7 @@ ${_recipe.process}
                           _buildPreparationSection(),
                           const SizedBox(height: 48),
                           _buildActionButtons(isOwner),
-                          const SizedBox(height: 160), // Extra space for glass bar
+                          const SizedBox(height: 80), // Normal padding
                         ],
                       ),
                     ),
@@ -442,70 +435,11 @@ ${_recipe.process}
                 ),
               ],
             ),
-      bottomNavigationBar: _buildFloatingGlassBar(),
     );
   }
 
-  Widget _buildFloatingGlassBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      height: 75,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(30),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.85),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withOpacity(0.5)),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10)),
-              ],
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFAB1A0),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: _markAsCooked,
-                        borderRadius: BorderRadius.circular(20),
-                        child: const Center(
-                          child: Text('MARK AS COOKED', 
-                            style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037), letterSpacing: 1, fontSize: 13)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF5D4037),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: IconButton(
-                    icon: const Icon(Icons.restaurant_rounded, color: Colors.white, size: 20),
-                    onPressed: () {},
-                    padding: const EdgeInsets.all(18),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
-  Widget _buildMuseumAppBar() {
+  Widget _buildRecipeAppBar() {
     return SliverAppBar(
       expandedHeight: 340.0,
       elevation: 0,
@@ -576,7 +510,7 @@ ${_recipe.process}
     );
   }
 
-  Widget _buildMuseumMetricBar() {
+  Widget _buildMetricBar() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24),
       decoration: BoxDecoration(
@@ -587,17 +521,17 @@ ${_recipe.process}
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildMuseumMetricItem('${_calculateTotalCalories()} kcal', 'CALORIES'),
+          _buildMetricItem('${_calculateTotalCalories()} kcal', 'CALORIES'),
           _buildMetricSeparator(),
-          _buildMuseumMetricItem('\$${_calculateTotalCost()}', 'TOTAL COST'),
+          _buildMetricItem('\$${_calculateTotalCost()}', 'TOTAL COST'),
           _buildMetricSeparator(),
-          _buildMuseumMetricItem('\$${_calculateCostPerServing()}', 'PER SERV'),
+          _buildMetricItem('\$${_calculateCostPerServing()}', 'PER SERV'),
         ],
       ),
     );
   }
 
-  Widget _buildMuseumMetricItem(String value, String label) {
+  Widget _buildMetricItem(String value, String label) {
     return Column(
       children: [
         Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
@@ -624,11 +558,32 @@ ${_recipe.process}
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Color(0xFF5D4037))),
           ),
           _buildBatchIcon(Icons.remove_rounded, () => _updateBatch(-0.5)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text('${_formatBatch(_batchMultiplier)}x', 
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF5D4037))),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 60,
+            child: TextField(
+              controller: _batchController,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF5D4037)),
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                border: InputBorder.none,
+                suffixText: 'x',
+                suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF5D4037)),
+              ),
+              onChanged: (val) {
+                final double? newMultiplier = double.tryParse(val);
+                if (newMultiplier != null && newMultiplier > 0) {
+                  setState(() {
+                    _batchMultiplier = newMultiplier;
+                  });
+                }
+              },
+            ),
           ),
+          const SizedBox(width: 8),
           _buildBatchIcon(Icons.add_rounded, () => _updateBatch(0.5)),
         ],
       ),
@@ -688,14 +643,26 @@ ${_recipe.process}
                     ),
                     const SizedBox(width: 14),
                     Expanded(
-                      child: Text(
-                        item['name'] ?? '', 
-                        style: TextStyle(
-                          fontSize: 15, 
-                          fontWeight: isChecked ? FontWeight.w500 : FontWeight.w700, 
-                          color: const Color(0xFF2D3436),
-                          decoration: isChecked ? TextDecoration.lineThrough : null,
-                        )
+                      child: Row(
+                        children: [
+                          Text(item['name'] ?? '', style: TextStyle(
+                            fontSize: 14, 
+                            fontWeight: FontWeight.w700, 
+                            color: const Color(0xFF2D3436),
+                            decoration: isChecked ? TextDecoration.lineThrough : null,
+                          )),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text('.' * 100, 
+                                maxLines: 1,
+                                overflow: TextOverflow.clip,
+                                style: TextStyle(color: const Color(0xFF5D4037).withOpacity(0.1), letterSpacing: 2, fontWeight: FontWeight.w900)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
                       ),
                     ),
                     Text('${_formatQty(item['qty'])} ${item['unit'] ?? ''}', 
@@ -706,7 +673,45 @@ ${_recipe.process}
             ),
           );
         }),
+        const SizedBox(height: 12),
+        _buildTotalWeightFooter(),
       ],
+    );
+  }
+
+  Widget _buildTotalWeightFooter() {
+    double totalG = 0;
+    for (var item in _parsedIngredients) {
+      double qty = double.tryParse(item['qty'].toString()) ?? 0;
+      String unit = item['unit'] ?? '';
+      totalG += UnitConverter.toGrams(qty, unit);
+    }
+    totalG *= _batchMultiplier;
+    if (totalG <= 0) return const SizedBox.shrink();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFAB1A0).withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFFAB1A0).withOpacity(0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(color: Color(0xFFFAB1A0), shape: BoxShape.circle),
+            child: const Icon(Icons.scale_rounded, color: Colors.white, size: 14),
+          ),
+          const SizedBox(width: 14),
+          const Expanded(
+            child: Text('ESTIMATED BATCH WEIGHT', 
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF5D4037), letterSpacing: 0.5)),
+          ),
+          Text('${totalG.toStringAsFixed(0)} g', 
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+        ],
+      ),
     );
   }
 
@@ -715,7 +720,7 @@ ${_recipe.process}
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('EXHIBITION STAGES', 
+        const Text('PREPARATION STEPS', 
           style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
         const SizedBox(height: 20),
         ...steps.asMap().entries.map((entry) {
@@ -744,16 +749,20 @@ ${_recipe.process}
   Widget _buildActionButtons(bool isOwner) {
     return Column(
       children: [
-        _buildMuseumButton(Icons.picture_as_pdf_rounded, 'SAVE AS PDF', _downloadPdf),
+        _buildRecipeButton(Icons.insights_rounded, 'CULINARY ANALYSIS', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeAnalysisScreen(recipe: _recipe, batchMultiplier: _batchMultiplier)));
+        }),
         const SizedBox(height: 12),
-        _buildMuseumButton(Icons.table_view_rounded, 'EXPORT EXCEL', _downloadExcel),
+        _buildRecipeButton(Icons.picture_as_pdf_rounded, 'SAVE AS PDF', _downloadPdf),
+        const SizedBox(height: 12),
+        _buildRecipeButton(Icons.table_view_rounded, 'EXPORT EXCEL', _downloadExcel),
         if (isOwner) ...[
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _buildMuseumButton(Icons.edit_rounded, 'EDIT', _editRecipe, isBrief: true)),
+              Expanded(child: _buildRecipeButton(Icons.edit_rounded, 'EDIT', _editRecipe, isBrief: true)),
               const SizedBox(width: 12),
-              Expanded(child: _buildMuseumButton(Icons.delete_outline_rounded, 'DELETE', _deleteRecipe, isBrief: true, isDestructive: true)),
+              Expanded(child: _buildRecipeButton(Icons.delete_outline_rounded, 'DELETE', _deleteRecipe, isBrief: true, isDestructive: true)),
             ],
           ),
         ],
@@ -761,7 +770,7 @@ ${_recipe.process}
     );
   }
 
-  Widget _buildMuseumButton(IconData icon, String label, VoidCallback onTap, {bool isBrief = false, bool isDestructive = false}) {
+  Widget _buildRecipeButton(IconData icon, String label, VoidCallback onTap, {bool isBrief = false, bool isDestructive = false}) {
     return OutlinedButton.icon(
       onPressed: onTap,
       icon: Icon(icon, size: 18),

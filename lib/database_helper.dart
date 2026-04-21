@@ -256,6 +256,13 @@ class DatabaseHelper {
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
+  Future<Map<String, dynamic>?> getRecipeById(int id) async {
+    final db = await database;
+    final results = await db.query('recipes', where: 'id = ?', whereArgs: [id]);
+    if (results.isNotEmpty) return results.first;
+    return null;
+  }
+
   Future<List<Map<String, dynamic>>> getCachedRecipes() async {
     final db = await database;
     // Show non-deleted items, pending at the top

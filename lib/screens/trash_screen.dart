@@ -79,65 +79,85 @@ class _TrashScreenState extends State<TrashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFFDFBF7),
       appBar: AppBar(
-        title: const Text('Recycle Bin',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.red,
+        title: const Text('RECYCLE BIN',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.white)),
+        backgroundColor: const Color(0xFF5D4037),
         foregroundColor: Colors.white,
         centerTitle: true,
+        elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF5D4037)))
           : _trashRecipes.isEmpty
-              ? const Center(
+              ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.delete_outline, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('Your Recycle Bin is empty',
-                          style: TextStyle(color: Colors.grey, fontSize: 18)),
+                      Icon(Icons.auto_delete_rounded, size: 80, color: const Color(0xFF5D4037).withOpacity(0.1)),
+                      const SizedBox(height: 24),
+                      const Text('NOTHING IN STORAGE',
+                          style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                      const SizedBox(height: 12),
+                      Text('Your anthology is perfectly organized.',
+                          style: TextStyle(color: Colors.brown.shade200, fontSize: 14)),
                     ],
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 160),
+                  physics: const BouncingScrollPhysics(),
                   itemCount: _trashRecipes.length,
                   itemBuilder: (ctx, index) {
                     final item = _trashRecipes[index];
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 15,
+                            offset: const Offset(0, 5),
+                          ),
+                        ],
+                      ),
                       child: ListTile(
+                        contentPadding: const EdgeInsets.all(16),
                         leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(16),
                           child: item['item_photo'] != null
                               ? Image.file(File(item['item_photo']),
-                                  width: 50, height: 50, fit: BoxFit.cover)
+                                  width: 56, height: 56, fit: BoxFit.cover)
                               : Container(
-                                  width: 50,
-                                  height: 50,
-                                  color: Colors.grey.shade200,
-                                  child: const Icon(Icons.image)),
+                                  width: 56,
+                                  height: 56,
+                                  color: const Color(0xFFFDFBF7),
+                                  child: const Icon(Icons.image_not_supported_rounded, color: Color(0xFFE2E8F0))),
                         ),
-                        title: Text(item['name'],
+                        title: Text(item['name'].toString().toUpperCase(),
                             style:
-                                const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                            'Deleted: ${item['deleted_at'].toString().split('T')[0]}'),
+                                const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037), fontSize: 13, letterSpacing: 0.5)),
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                              'ARCHIVED: ${item['deleted_at'].toString().split('T')[0]}',
+                              style: const TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w800)),
+                        ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: const Icon(Icons.restore,
-                                  color: Colors.green),
+                              icon: const Icon(Icons.history_rounded,
+                                  color: Color(0xFFB2BEC3), size: 22),
                               onPressed: () => _restore(item['id']),
                               tooltip: 'Restore',
                             ),
                             IconButton(
-                              icon: const Icon(Icons.delete_forever,
-                                  color: Colors.red),
+                              icon: const Icon(Icons.delete_forever_rounded,
+                                  color: Color(0xFFFAB1A0), size: 22),
                               onPressed: () => _deletePermanently(item['id']),
                               tooltip: 'Delete Permanently',
                             ),

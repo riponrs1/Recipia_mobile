@@ -425,7 +425,14 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
+      backgroundColor: const Color(0xFFFDFBF7),
+      appBar: AppBar(
+        title: const Text('BACKUP & SYNC',
+            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 13, color: Colors.white)),
+        centerTitle: true,
+        backgroundColor: const Color(0xFF5D4037),
+        elevation: 0,
+      ),
       body: _isLoading || _sections.isEmpty
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -435,7 +442,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                   _buildAppBar(),
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.all(20.0),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 160),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -539,7 +546,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 100),
+                          const SizedBox(height: 160),
                         ],
                       ),
                     ),

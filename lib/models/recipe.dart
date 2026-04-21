@@ -17,6 +17,7 @@ class Recipe {
   final int? sharedWithCount;
   final List<dynamic>? sharedWith;
   final int servings;
+  final int cookedCount;
 
   Recipe({
     required this.id,
@@ -35,6 +36,7 @@ class Recipe {
     this.sharedWithCount,
     this.sharedWith,
     this.servings = 1,
+    this.cookedCount = 0,
   });
 
   factory Recipe.fromJson(Map<String, dynamic> json) {
@@ -59,6 +61,7 @@ class Recipe {
       sharedWithCount: json['shared_with_count'],
       sharedWith: json['shared_with'],
       servings: json['servings'] ?? 1,
+      cookedCount: json['cooked_count'] ?? 0,
     );
   }
 

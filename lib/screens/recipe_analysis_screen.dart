@@ -98,10 +98,11 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
       appBar: AppBar(
-        title: const Text('Culinary Analysis', 
-          style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+        title: const Text('CULINARY ANALYSIS', 
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Color(0xFF5D4037))),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF5D4037), size: 20),
           onPressed: () => Navigator.pop(context),
@@ -126,11 +127,11 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(widget.recipe.name, 
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: Color(0xFF2D3436))),
+          Text(widget.recipe.name.toUpperCase(), 
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF2D3436), letterSpacing: -0.5)),
           const SizedBox(height: 4),
-          Text('Detailed session breakdown • ${widget.batchMultiplier}x Batch', 
-            style: TextStyle(color: Colors.brown.shade300, fontWeight: FontWeight.w600)),
+          Text('SESSION BREAKDOWN • ${widget.batchMultiplier}X BATCH', 
+            style: const TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
           const SizedBox(height: 16),
           _buildInfoBanner(),
         ],

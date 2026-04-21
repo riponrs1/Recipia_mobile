@@ -175,7 +175,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
               : _filteredRecipes.isEmpty
                   ? SliverFillRemaining(child: _buildNoResults())
                   : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 160),
                       sliver: SliverGrid(
                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
@@ -184,7 +184,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                           mainAxisSpacing: 16,
                         ),
                         delegate: SliverChildBuilderDelegate(
-                          (context, index) => _buildAtelierCard(_filteredRecipes[index]),
+                          (context, index) => _buildRecipeCard(_filteredRecipes[index]),
                           childCount: _filteredRecipes.length,
                         ),
                       ),
@@ -208,7 +208,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Museum', style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+            Text('Recipe', style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
             Text('COLLECTION', 
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24, letterSpacing: -0.5)),
           ],
@@ -311,7 +311,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
     );
   }
 
-  Widget _buildAtelierCard(Recipe recipe) {
+  Widget _buildRecipeCard(Recipe recipe) {
     return GestureDetector(
       onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipe: recipe))).then((_) => _loadRecipes()),
       child: Container(

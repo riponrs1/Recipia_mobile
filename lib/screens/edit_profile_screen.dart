@@ -222,92 +222,162 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final String? currentAvatarUrl = widget.userData['profile']?['avatar'];
 
     return Scaffold(
+      backgroundColor: const Color(0xFFFDFBF7),
       appBar: AppBar(
-        title: const Text('Edit Profile'),
+        title: const Text('EDIT PROFILE',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.white)),
+        backgroundColor: const Color(0xFF5D4037),
+        foregroundColor: Colors.white,
+        centerTitle: true,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.all(24.0),
         child: Form(
           key: _formKey,
           child: Column(
             children: [
-              GestureDetector(
-                onTap: _pickImage,
-                child: CircleAvatar(
-                  radius: 50,
-                  backgroundImage: _avatarImage != null
-                      ? FileImage(_avatarImage!)
-                      : (currentAvatarUrl != null
-                          ? CachedNetworkImageProvider(
-                              ApiService.getImageUrl(currentAvatarUrl))
-                          : null) as ImageProvider?,
-                  child: (_avatarImage == null && currentAvatarUrl == null)
-                      ? const Icon(Icons.person, size: 50)
-                      : null,
+              Center(
+                child: Stack(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFFFAB1A0), width: 2),
+                      ),
+                      child: CircleAvatar(
+                        radius: 60,
+                        backgroundColor: const Color(0xFF5D4037).withOpacity(0.1),
+                        backgroundImage: _avatarImage != null
+                            ? FileImage(_avatarImage!)
+                            : (currentAvatarUrl != null
+                                ? CachedNetworkImageProvider(
+                                    ApiService.getImageUrl(currentAvatarUrl))
+                                : null) as ImageProvider?,
+                        child: (_avatarImage == null && currentAvatarUrl == null)
+                            ? const Icon(Icons.person_rounded, size: 60, color: Color(0xFF5D4037))
+                            : null,
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: GestureDetector(
+                        onTap: _pickImage,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFF5D4037),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              TextButton.icon(
-                onPressed: _pickImage,
-                icon: const Icon(Icons.image),
-                label: const Text('Change Avatar'),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
+              const SizedBox(height: 32),
+              _buildModernInput(
                 controller: _usernameController,
-                decoration: const InputDecoration(
-                    labelText: 'Username', border: OutlineInputBorder()),
-                validator: (value) {
-                  // Basic validation, uniqueness checked by server
-                  if (value != null && value.length > 255) {
-                    return 'Username too long';
-                  }
-                  return null;
-                },
+                label: 'ARTISAN NAME',
+                icon: Icons.person_outline_rounded,
+                validator: (value) => (value != null && value.length > 255) ? 'Too long' : null,
               ),
-              const SizedBox(height: 16),
-              TextFormField(
+              const SizedBox(height: 20),
+              _buildModernInput(
                 controller: _bioController,
-                decoration: const InputDecoration(
-                    labelText: 'Bio', border: OutlineInputBorder()),
-                maxLines: 3,
-                validator: (value) =>
-                    value != null && value.length > 500 ? 'Bio too long' : null,
+                label: 'CULINARY PHILOSOPHY',
+                icon: Icons.auto_awesome_rounded,
+                maxLines: 4,
+                validator: (value) => (value != null && value.length > 500) ? 'Too long' : null,
               ),
-              const SizedBox(height: 16),
-              TextFormField(
+              const SizedBox(height: 20),
+              _buildModernInput(
                 controller: _locationController,
-                decoration: const InputDecoration(
-                    labelText: 'Location', border: OutlineInputBorder()),
+                label: 'HEADQUARTERS',
+                icon: Icons.location_on_outlined,
               ),
-              const SizedBox(height: 16),
-              TextFormField(
+              const SizedBox(height: 20),
+              _buildModernInput(
                 controller: _websiteController,
-                decoration: const InputDecoration(
-                    labelText: 'Website', border: OutlineInputBorder()),
+                label: 'FOLIO / WEBSITE',
+                icon: Icons.language_rounded,
                 keyboardType: TextInputType.url,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 48),
               SizedBox(
                 width: double.infinity,
+                height: 56,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: const Color(0xFF5D4037),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          height: 24,
+                          width: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                         )
-                      : const Text('Save Changes'),
+                      : const Text('SAVE IDENTITY', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                 ),
               ),
+              const SizedBox(height: 100),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildModernInput({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+    TextInputType? keyboardType,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(label,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.02),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: TextFormField(
+            controller: controller,
+            maxLines: maxLines,
+            keyboardType: keyboardType,
+            style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF5D4037), fontSize: 14),
+            decoration: InputDecoration(
+              prefixIcon: Icon(icon, color: const Color(0xFF5D4037).withOpacity(0.3), size: 20),
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            ),
+            validator: validator,
+          ),
+        ),
+      ],
     );
   }
 }

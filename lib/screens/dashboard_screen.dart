@@ -87,11 +87,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     const SizedBox(height: 24),
                     _buildMetricBar(),
                     const SizedBox(height: 32),
-                    _buildSectionHeader('CURATED CATEGORIES', isSub: true),
+                    _buildSectionHeader('CATEGORIES', isSub: true),
                     const SizedBox(height: 16),
-                    _buildAtelierExplorer(),
+                    _buildCategoryExplorer(),
                     const SizedBox(height: 32),
-                    _buildSectionHeader('MASTERPIECE COLLECTION', 
+                    _buildSectionHeader('RECIPE COLLECTION', 
                       onSeeAll: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeListScreen()))),
                     const SizedBox(height: 16),
                   ],
@@ -101,7 +101,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _recentRecipes.isEmpty
                 ? SliverToBoxAdapter(child: Padding(padding: const EdgeInsets.symmetric(horizontal: 24), child: _buildEmptyState()))
                 : SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 120),
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 160),
                     sliver: SliverGrid(
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
@@ -110,7 +110,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         mainAxisSpacing: 16,
                       ),
                       delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildAtelierCard(_recentRecipes[index]),
+                        (context, index) => _buildRecipeCard(_recentRecipes[index]),
                         childCount: _recentRecipes.length,
                       ),
                     ),
@@ -198,7 +198,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         readOnly: true,
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeListScreen())),
         decoration: InputDecoration(
-          hintText: 'Search your anthology...',
+          hintText: 'Search your recipes...',
           hintStyle: TextStyle(color: Colors.brown.shade100, fontSize: 14, fontWeight: FontWeight.w500),
           prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFFAB1A0), size: 20),
           border: InputBorder.none,
@@ -268,7 +268,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildAtelierExplorer() {
+  Widget _buildCategoryExplorer() {
     return SizedBox(
       height: 48,
       child: ListView.builder(
@@ -327,7 +327,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return '🍽️';
   }
 
-  Widget _buildAtelierCard(Recipe recipe) {
+  Widget _buildRecipeCard(Recipe recipe) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RecipeDetailScreen(recipe: recipe))),
       child: Container(

@@ -60,14 +60,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final syncProvider = Provider.of<SyncProvider>(context);
-    final name = _userData?['name'] ?? syncProvider.userName ?? "Executive Chef";
-    final email = _userData?['email'] ?? syncProvider.userEmail ?? "Culinary Workspace";
+    final name = _userData?['name'] ?? syncProvider.userName ?? "EXECUTIVE CHEF";
+    final email = _userData?['email'] ?? syncProvider.userEmail ?? "VIRTUAL ATELIER";
     final avatarUrl = _userData?['profile']?['avatar'];
 
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
       body: _isLoading 
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF5D4037)))
           : CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
@@ -78,19 +78,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: Column(
                       children: [
                         _buildStatsRow(),
-                        const SizedBox(height: 32),
-                        _buildMenuSection('KITCHEN MANAGEMENT', [
-                          _buildMenuItem(Icons.sync_rounded, Colors.blue, 'Backup & Sync', 'Cloud storage with Google Drive', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BackupSyncScreen()))),
-                          _buildMenuItem(Icons.category_outlined, Colors.orange, 'Cuisines & Sections', 'Personalize your kitchen categories', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeSectionsScreen()))),
-                          _buildMenuItem(Icons.delete_outline_rounded, Colors.red, 'Culinary Archive', 'Restore deleted masterpieces', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrashScreen()))),
+                        const SizedBox(height: 40),
+                        _buildMenuSection('MANAGEMENT', [
+                          _buildMenuItem(Icons.sync_lock_rounded, const Color(0xFF5D4037), 'ARCHIVAL & SYNC', 'Secure your anthology in the cloud', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BackupSyncScreen()))),
+                          _buildMenuItem(Icons.auto_awesome_mosaic_rounded, const Color(0xFFFAB1A0), 'CUISINES & SECTIONS', 'Organize your culinary categories', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeSectionsScreen()))),
+                          _buildMenuItem(Icons.auto_delete_rounded, const Color(0xFFFAB1A0), 'RECYCLE BIN', 'Restore archived masterpieces', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrashScreen()))),
                         ]),
                         const SizedBox(height: 24),
                         _buildMenuSection('SYSTEM', [
-                          _buildMenuItem(Icons.import_export_rounded, Colors.teal, 'Export Records', 'Secure your local .db file', () => _exportDatabase(context)),
-                          _buildMenuItem(Icons.logout_rounded, Colors.grey.shade700, 'Logout', 'Safely sign out of Atelier', () => _handleLogout(context, syncProvider)),
+                          _buildMenuItem(Icons.ios_share_rounded, const Color(0xFFB2BEC3), 'EXPORT RECORDS', 'Download secure database backup', () => _exportDatabase(context)),
+                          _buildMenuItem(Icons.logout_rounded, const Color(0xFF5D4037), 'EXIT ATELIER', 'Safely sign out of your session', () => _handleLogout(context, syncProvider)),
                         ]),
-                        const SizedBox(height: 40),
-                        Text('RECIPIA v2.0 • GOURMET ELEGANCE', style: TextStyle(color: Colors.brown.shade100, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                        const SizedBox(height: 160),
+                        Text('ATELIER CUISINE • v2.0 • GOURMET EDITION', style: TextStyle(color: const Color(0xFF5D4037).withOpacity(0.1), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                        const SizedBox(height: 48),
                       ],
                     ),
                   ),
@@ -102,9 +103,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildSliverHeader(String name, String email, String? avatarUrl, SyncProvider syncProvider) {
     return SliverAppBar(
-      expandedHeight: 320.0,
+      expandedHeight: 340.0,
       pinned: true,
       elevation: 0,
+      stretch: true,
       backgroundColor: const Color(0xFF5D4037),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
@@ -116,21 +118,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Container(color: const Color(0xFF5D4037)),
             Positioned(
-              right: -50,
-              top: -50,
-              child: Icon(Icons.restaurant_rounded, size: 280, color: Colors.white.withOpacity(0.04)),
+              right: -40,
+              top: -40,
+              child: Icon(Icons.blur_on_rounded, size: 400, color: Colors.white.withOpacity(0.03)),
             ),
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(height: 40),
+                const SizedBox(height: 60),
                 Stack(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(4),
                       decoration: const BoxDecoration(color: Color(0xFFFAB1A0), shape: BoxShape.circle),
                       child: CircleAvatar(
-                        radius: 54,
+                        radius: 56,
                         backgroundColor: Colors.white,
                         backgroundImage: avatarUrl != null
                             ? CachedNetworkImageProvider(ApiService.getImageUrl(avatarUrl))
@@ -152,16 +154,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         },
                         child: const CircleAvatar(
                           radius: 18,
-                          backgroundColor: Color(0xFFFAB1A0),
-                          child: Icon(Icons.edit_rounded, color: Color(0xFF5D4037), size: 16),
+                          backgroundColor: Color(0xFF5D4037),
+                          child: Icon(Icons.camera_enhance_rounded, color: Colors.white, size: 16),
                         ),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 16),
-                Text(name, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
-                Text(email, style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 20),
+                Text(name.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
+                  child: Text(email.toLowerCase(), style: const TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                ),
               ],
             ),
           ],
@@ -173,11 +180,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildStatsRow() {
     return Row(
       children: [
-        _buildStatCard('MASTERPIECES', _stats['recipeCount'].toString(), Icons.menu_book_rounded),
+        _buildStatCard('MASTERPIECES', _stats['recipeCount'].toString(), Icons.history_edu_rounded),
         const SizedBox(width: 12),
-        _buildStatCard('PANTRY VALUE', '\$${_stats['pantryValue'].toStringAsFixed(0)}', Icons.inventory_2_rounded),
+        _buildStatCard('CURRENCY', '\$${_stats['pantryValue'].toStringAsFixed(0)}', Icons.payments_outlined),
         const SizedBox(width: 12),
-        _buildStatCard('SECTIONS', _stats['sectionCount'].toString(), Icons.grid_view_rounded),
+        _buildStatCard('ARCHIVES', _stats['sectionCount'].toString(), Icons.shelves),
       ],
     );
   }
@@ -185,20 +192,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildStatCard(String label, String value, IconData icon) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5)),
           ],
         ),
         child: Column(
           children: [
-            Icon(icon, color: const Color(0xFFFAB1A0), size: 20),
-            const SizedBox(height: 8),
+            Icon(icon, color: const Color(0xFFFAB1A0), size: 24),
+            const SizedBox(height: 12),
             Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
-            Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w800, color: Colors.grey, letterSpacing: 1)),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFB2BEC3), letterSpacing: 1)),
           ],
         ),
       ),
@@ -210,15 +218,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 12, bottom: 12),
-          child: Text(title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1.5)),
+          padding: const EdgeInsets.only(left: 16, bottom: 12),
+          child: Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFFAB1A0), letterSpacing: 2)),
         ),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(24),
+            borderRadius: BorderRadius.circular(28),
             boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4)),
+              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5)),
             ],
           ),
           child: Column(children: items),
@@ -229,15 +237,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Widget _buildMenuItem(IconData icon, Color color, String title, String subtitle, VoidCallback onTap) {
     return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
       leading: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: color.withOpacity(0.05), borderRadius: BorderRadius.circular(16)),
         child: Icon(icon, color: color, size: 20),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF2D3436))),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Colors.grey)),
-      trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF5D4037), letterSpacing: 0.5)),
+      subtitle: Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Text(subtitle, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB2BEC3))),
+      ),
+      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFFE2E8F0)),
       onTap: onTap,
     );
   }
@@ -247,28 +258,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(32),
         decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Archive Records", style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900)),
+            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 24),
-            _buildExportOption(Icons.share_rounded, 'SHARE ARCHIVE', 'Export to cloud or other apps', Colors.blue, () {
+            const Text("DATA ARCHIVAL", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFF5D4037))),
+            const SizedBox(height: 32),
+            _buildExportOption(Icons.ios_share_rounded, 'SHARE ANTHOLOGY', 'Export as secure .db file', const Color(0xFF5D4037), () {
               Navigator.pop(ctx);
               _shareDatabase(context);
             }),
-            const SizedBox(height: 12),
-            _buildExportOption(Icons.save_alt_rounded, 'SAVE TO DISK', 'Secure a copy on this device', Colors.teal, () {
+            const SizedBox(height: 16),
+            _buildExportOption(Icons.save_as_rounded, 'LOCAL SNAPSHOT', 'Save records to device storage', const Color(0xFFFAB1A0), () {
               Navigator.pop(ctx);
               _saveDatabaseToDevice(context);
             }),
-            const SizedBox(height: 12),
-            _buildExportOption(Icons.upload_file_rounded, 'RESTORE ARCHIVE', 'Import an existing .db file', Colors.orange, () {
+            const SizedBox(height: 16),
+            _buildExportOption(Icons.unarchive_rounded, 'RESTORE ARCHIVE', 'Import existing .db records', const Color(0xFFB2BEC3), () {
               Navigator.pop(ctx);
               _importDatabaseFromFile(context);
             }),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
           ],
         ),
       ),
@@ -280,16 +293,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(border: Border.all(color: Colors.black12), borderRadius: BorderRadius.circular(20)),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFDFBF7),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: color.withOpacity(0.1)),
+        ),
         child: Row(
           children: [
-            Icon(icon, color: color),
+            Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)), child: Icon(icon, color: color, size: 20)),
             const SizedBox(width: 16),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13)),
-                Text(sub, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1, color: Color(0xFF5D4037))),
+                const SizedBox(height: 2),
+                Text(sub, style: const TextStyle(color: Color(0xFFB2BEC3), fontSize: 10, fontWeight: FontWeight.w700)),
               ]),
             ),
           ],
@@ -304,7 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await DatabaseHelper().closeDatabase();
       final dbDir = await getDatabasesPath();
       final dbPath = p.join(dbDir, 'recipia_offline.db');
-      await Share.shareXFiles([XFile(dbPath)], text: 'Recipia Culinary Archive Export');
+      await Share.shareXFiles([XFile(dbPath)], text: 'Atelier Cuisine Anthology Export');
     } catch (e) {
       debugPrint('Share failed: $e');
     } finally {
@@ -319,9 +337,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final dbDir = await getDatabasesPath();
       final dbPath = p.join(dbDir, 'recipia_offline.db');
       final dbFile = File(dbPath);
-      final fileName = 'Recipia_Atelier_${DateTime.now().millisecondsSinceEpoch}.db';
-      await FilePicker.platform.saveFile(dialogTitle: 'Save Archive', fileName: fileName, type: FileType.any, bytes: await dbFile.readAsBytes());
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archive saved successfully!'), backgroundColor: Colors.green));
+      final fileName = 'Atelier_Archive_${DateTime.now().millisecondsSinceEpoch}.db';
+      await FilePicker.platform.saveFile(dialogTitle: 'Save Anthology', fileName: fileName, type: FileType.any, bytes: await dbFile.readAsBytes());
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archive saved successfully!'), backgroundColor: Color(0xFF5D4037)));
     } catch (e) {
       debugPrint('Save failed: $e');
     } finally {
@@ -338,20 +356,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final confirm = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text("Restore Archive?"),
-          content: const Text("This will PERMANENTLY REPLACE your current kitchen records. This action cannot be undone."),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: const Text("IMPORT ANTHOLOGY?", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
+          content: const Text("This action will permanently replace your current records with the imported file.", style: TextStyle(fontSize: 13, color: Color(0xFF636E72))),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("CANCEL")),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("RESTORE", style: TextStyle(color: Colors.red))),
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("CANCEL", style: TextStyle(color: Color(0xFFB2BEC3), fontWeight: FontWeight.w900))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("PROCEED", style: TextStyle(color: Color(0xFFFAB1A0), fontWeight: FontWeight.w900))),
           ],
         ),
       );
 
       if (confirm == true) {
+        if (!mounted) return;
         setState(() => _isLoading = true);
         await DatabaseHelper().importDatabase(filePath);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archive restored successfully!'), backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archive restored successfully!'), backgroundColor: Color(0xFF5D4037)));
           context.read<SyncProvider>().refreshAfterRestore();
         }
       }
@@ -366,11 +387,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('LOGOUT?', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
+        content: const Text('Are you sure you want to terminate your current session?', style: TextStyle(fontSize: 13, color: Color(0xFF636E72))),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Logout', style: TextStyle(color: Colors.red))),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL', style: TextStyle(color: Color(0xFFB2BEC3), fontWeight: FontWeight.w900))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('LOGOUT', style: TextStyle(color: Color(0xFF5D4037), fontWeight: FontWeight.w900))),
         ],
       ),
     );

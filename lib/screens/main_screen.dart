@@ -5,6 +5,7 @@ import 'dashboard_screen.dart';
 import 'recipe_list_screen.dart';
 import 'profile_screen.dart';
 import 'ingredients_screen.dart';
+import 'discovery_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -17,6 +18,7 @@ class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
   final _navigatorKeys = [
+    GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
     GlobalKey<NavigatorState>(),
@@ -73,8 +75,9 @@ class _MainScreenState extends State<MainScreen> {
           children: [
             _buildNavigator(0, const DashboardScreen()),
             _buildNavigator(1, const RecipeListScreen()),
-            _buildNavigator(2, const IngredientsScreen()),
-            _buildNavigator(3, const ProfileScreen()),
+            _buildNavigator(2, const DiscoveryScreen()),
+            _buildNavigator(3, const IngredientsScreen()),
+            _buildNavigator(4, const ProfileScreen()),
           ],
         ),
         bottomNavigationBar: _buildGlassNavigationBar(),
@@ -121,6 +124,10 @@ class _MainScreenState extends State<MainScreen> {
                 BottomNavigationBarItem(
                   icon: Icon(Icons.menu_book_rounded),
                   label: 'Recipes',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.insights_rounded),
+                  label: 'Explore',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.kitchen_rounded),

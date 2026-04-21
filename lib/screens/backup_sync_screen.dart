@@ -17,14 +17,18 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
     final syncProvider = Provider.of<SyncProvider>(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F7FA),
+      backgroundColor: const Color(0xFFFDFBF7),
       appBar: AppBar(
-        title: const Text('Backup & Sync',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('BACKUP & SYNC',
+            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 13, color: Colors.white)),
         centerTitle: true,
+        backgroundColor: const Color(0xFF5D4037),
+        elevation: 0,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
         child: Column(
           children: [
             // --- NEW: Offline Readiness Section ---
@@ -36,9 +40,9 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.green.withOpacity(0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
@@ -49,11 +53,11 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade50,
+                          color: const Color(0xFF5D4037).withOpacity(0.05),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Icon(Icons.offline_pin_rounded,
-                            color: Colors.green.shade700, size: 32),
+                        child: const Icon(Icons.offline_pin_rounded,
+                            color: Color(0xFF5D4037), size: 32),
                       ),
                       const SizedBox(width: 16),
                       const Column(
@@ -61,27 +65,27 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                         children: [
                           Text("Offline Readiness",
                               style: TextStyle(
-                                  fontSize: 20, fontWeight: FontWeight.bold)),
+                                  fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
                           Text("Sync for no-internet usage",
                               style:
-                                  TextStyle(fontSize: 12, color: Colors.grey)),
+                                  TextStyle(fontSize: 10, color: Color(0xFFB2BEC3), fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                         ],
                       ),
                     ],
                   ),
-                  const Divider(height: 40),
+                  const Divider(height: 48, color: Color(0xFFFDFBF7)),
                   const Text(
-                    "Download all recipes, ingredients, and categories from the server to your local database so you can work completely offline.",
-                    style: TextStyle(color: Colors.grey, fontSize: 13, height: 1.5),
+                    "Download all recipes, ingredients, and categories to your local database so you can work completely offline without an internet connection.",
+                    style: TextStyle(color: Color(0xFF636E72), fontSize: 13, height: 1.6),
                   ),
                   const SizedBox(height: 24),
                   if (syncProvider.isDownloadingAll)
                     const Column(
                       children: [
-                        LinearProgressIndicator(color: Colors.green),
+                        LinearProgressIndicator(color: Color(0xFFFAB1A0)),
                         SizedBox(height: 12),
-                        Text("Downloading server data...",
-                            style: TextStyle(color: Colors.grey, fontSize: 13)),
+                        Text("AUTHENTICATING LOCAL RECORDS...",
+                            style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
                       ],
                     )
                   else
@@ -96,21 +100,16 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                           if (error == null) {
                             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                               content: Text('Offline data ready!'),
-                              backgroundColor: Colors.green,
-                            ));
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                              content: Text('Sync failed: $error'),
-                              backgroundColor: Colors.red,
+                              backgroundColor: Color(0xFF5D4037),
                             ));
                           }
                         },
-                        icon: const Icon(Icons.download_for_offline_rounded),
-                        label: const Text("Download All Server Data",
-                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        icon: const Icon(Icons.download_for_offline_rounded, size: 20),
+                        label: const Text("LOCALIZE DATABASE",
+                            style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade600,
-                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xFFFAB1A0),
+                          foregroundColor: const Color(0xFF5D4037),
                           elevation: 0,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16)),
@@ -128,9 +127,9 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                 borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.blue.withOpacity(0.05),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
+                    color: Colors.black.withOpacity(0.03),
+                    blurRadius: 15,
+                    offset: const Offset(0, 5),
                   ),
                 ],
               ),
@@ -141,35 +140,35 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
+                          color: const Color(0xFF5D4037).withOpacity(0.05),
                           borderRadius: BorderRadius.circular(16),
                         ),
-                        child: Icon(Icons.cloud_sync,
-                            color: Colors.blue.shade700, size: 32),
+                        child: const Icon(Icons.cloud_sync,
+                            color: Color(0xFF5D4037), size: 32),
                       ),
                       const SizedBox(width: 16),
                       const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text("Cloud Backup",
+                          Text("Cloud Artifacts",
                               style: TextStyle(
-                                  fontSize: 20, fontWeight: FontWeight.bold)),
-                          Text("Google Drive Storage",
+                                  fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+                          Text("Google Drive Integration",
                               style:
-                                  TextStyle(fontSize: 12, color: Colors.grey)),
+                                  TextStyle(fontSize: 10, color: Color(0xFFB2BEC3), fontWeight: FontWeight.w700, letterSpacing: 0.5)),
                         ],
                       ),
                     ],
                   ),
-                  const Divider(height: 48),
+                  const Divider(height: 48, color: Color(0xFFFDFBF7)),
                   if (!syncProvider.isGoogleSignedIn &&
                       syncProvider.userEmail == null)
                     Column(
                       children: [
                         const Text(
-                          "Connect your Google Account to backup your recipes and restore them on any device.",
+                          "Connect your Google Account to archive your recipes and restore them on any device with Atelier installed.",
                           textAlign: TextAlign.center,
-                          style: TextStyle(color: Colors.grey, height: 1.5),
+                          style: TextStyle(color: Color(0xFF636E72), height: 1.6, fontSize: 13),
                         ),
                         const SizedBox(height: 24),
                         SizedBox(
@@ -181,15 +180,16 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                               'https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png',
                               height: 20,
                             ),
-                            label: const Text("Connect Google Drive",
+                            label: const Text("CONNECT DRIVE",
                                 style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87)),
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 1,
+                                    color: Color(0xFF5D4037))),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.black,
+                              backgroundColor: const Color(0xFFFDFBF7),
+                              foregroundColor: const Color(0xFF5D4037),
                               elevation: 0,
-                              side: BorderSide(color: Colors.grey.shade300),
+                              side: BorderSide(color: const Color(0xFF5D4037).withOpacity(0.1)),
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16)),
                             ),
@@ -204,28 +204,30 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
+                            color: const Color(0xFFFDFBF7),
+                            borderRadius: BorderRadius.circular(16),
                           ),
                           child: Row(
                             children: [
                               Icon(
                                   syncProvider.isGoogleSignedIn
-                                      ? Icons.check_circle
-                                      : Icons.cloud_off,
+                                      ? Icons.verified_user_rounded
+                                      : Icons.cloud_off_rounded,
                                   color: syncProvider.isGoogleSignedIn
-                                      ? Colors.green
-                                      : Colors.grey,
+                                      ? const Color(0xFFFAB1A0)
+                                      : const Color(0xFFB2BEC3),
                                   size: 20),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
                                   syncProvider.isGoogleSignedIn
-                                      ? "Account: ${syncProvider.userEmail}"
-                                      : "${syncProvider.userEmail} (Offline)",
+                                      ? "ACCOUNT: ${syncProvider.userEmail}"
+                                      : "OFFLINE: ${syncProvider.userEmail}",
                                   style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 14),
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 10,
+                                      letterSpacing: 0.5,
+                                      color: Color(0xFF5D4037)),
                                 ),
                               ),
                             ],
@@ -234,65 +236,68 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                         const SizedBox(height: 24),
                         if (syncProvider.cloudMetadata != null) ...[
                           _buildDetailRow(
-                              Icons.access_time,
-                              "Last Backup",
+                              Icons.history_rounded,
+                              "Last Archive",
                               _formatDate(
                                   syncProvider.cloudMetadata!['modifiedTime'])),
                           const SizedBox(height: 12),
-                          _buildDetailRow(Icons.storage, "Backup Size",
+                          _buildDetailRow(Icons.layers_outlined, "Storage Data",
                               _formatSize(syncProvider.cloudMetadata!['size'])),
                           const SizedBox(height: 12),
                           _buildDetailRow(
-                              Icons.file_present_outlined,
-                              "Local Database",
+                              Icons.storage_rounded,
+                              "Local Cache",
                               _formatSize(syncProvider.localDatabaseSize)),
                           const SizedBox(height: 12),
                           _buildDetailRow(
-                              Icons.photo_library_outlined,
-                              "Media Count",
+                              Icons.collections_rounded,
+                              "Media Assets",
                               "${syncProvider.localPhotoCount} photos"),
-                          const Divider(height: 48),
+                          const Divider(height: 48, color: Color(0xFFFDFBF7)),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text("Auto Backup",
+                                  Text("Automated Archival",
                                       style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16)),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 15,
+                                          color: Color(0xFF5D4037))),
                                   Text("Sync automatically when online",
                                       style: TextStyle(
-                                          fontSize: 12, color: Colors.grey)),
+                                          fontSize: 10, color: Color(0xFFB2BEC3), fontWeight: FontWeight.w700)),
                                 ],
                               ),
                               Switch.adaptive(
                                 value: syncProvider.isAutoBackupEnabled,
                                 onChanged: (v) =>
                                     syncProvider.toggleAutoBackup(v),
-                                activeColor: const Color(0xFFE74C3C),
+                                activeColor: const Color(0xFFFAB1A0),
                               ),
                             ],
                           ),
                         ] else ...[
                           Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.all(16),
+                            padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: Colors.orange.shade50,
-                              borderRadius: BorderRadius.circular(12),
+                              color: const Color(0xFFFAB1A0).withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                            child: Row(
+                            child: const Row(
                               children: [
-                                Icon(Icons.info_outline,
-                                    color: Colors.orange.shade700),
+                                Icon(Icons.info_outline_rounded,
+                                    color: Color(0xFFFAB1A0)),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Text("No cloud backup found yet.",
+                                  child: Text("No cloud artifacts found.",
                                       style: TextStyle(
-                                          color: Colors.orange.shade700,
-                                          fontWeight: FontWeight.bold)),
+                                          color: Color(0xFFFAB1A0),
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 12,
+                                          letterSpacing: 0.5)),
                                 ),
                               ],
                             ),
@@ -302,11 +307,11 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                         if (syncProvider.status == SyncStatus.syncing)
                           const Column(
                             children: [
-                              LinearProgressIndicator(color: Color(0xFFE74C3C)),
+                              LinearProgressIndicator(color: Color(0xFFFAB1A0)),
                               SizedBox(height: 12),
-                              Text("Syncing with Google Drive...",
+                              Text("COMMUNICATING WITH GOOGLE DRIVE...",
                                   style: TextStyle(
-                                      color: Colors.grey, fontSize: 13)),
+                                      color: Color(0xFFFAB1A0), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
                             ],
                           )
                         else
@@ -325,24 +330,24 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                                             ScaffoldMessenger.of(context)
                                                 .showSnackBar(const SnackBar(
                                               content:
-                                                  Text('Backup successful!'),
-                                              backgroundColor: Colors.green,
+                                                  Text('Archive successful!'),
+                                              backgroundColor: Color(0xFF5D4037),
                                             ));
                                           }
                                         },
                                   style: ElevatedButton.styleFrom(
-                                    backgroundColor: const Color(0xFFE74C3C),
+                                    backgroundColor: const Color(0xFF5D4037),
                                     foregroundColor: Colors.white,
                                     shape: RoundedRectangleBorder(
                                         borderRadius:
                                             BorderRadius.circular(16)),
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 18),
-                                    elevation: 2,
+                                    elevation: 0,
                                   ),
-                                  child: const Text("Backup Now",
+                                  child: const Text("ARCHIVE NOW",
                                       style: TextStyle(
-                                          fontWeight: FontWeight.bold)),
+                                          fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 13)),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -352,26 +357,25 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                                       context, syncProvider),
                                   style: OutlinedButton.styleFrom(
                                     side: const BorderSide(
-                                        color: Color(0xFFE74C3C)),
-                                    foregroundColor: const Color(0xFFE74C3C),
+                                        color: Color(0xFFFAB1A0), width: 1.5),
+                                    foregroundColor: const Color(0xFFFAB1A0),
                                     shape: RoundedRectangleBorder(
                                         borderRadius:
                                             BorderRadius.circular(16)),
                                     padding: const EdgeInsets.symmetric(
                                         vertical: 18),
                                   ),
-                                  child: const Text("Restore",
+                                  child: const Text("RESTORE",
                                       style: TextStyle(
-                                          fontWeight: FontWeight.bold)),
+                                          fontWeight: FontWeight.w900, letterSpacing: 1, fontSize: 13)),
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 16),
-                          // Transition / Migration specific button
                           SizedBox(
                             width: double.infinity,
-                            child: ElevatedButton.icon(
+                            child: TextButton.icon(
                               onPressed: _isSyncing
                                   ? null
                                   : () async {
@@ -385,47 +389,38 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
                                           builder: (ctx) => AlertDialog(
                                             title: const Icon(
                                                 Icons.verified_user_rounded,
-                                                color: Colors.green,
+                                                color: Color(0xFFFAB1A0),
                                                 size: 48),
                                             content: const Text(
-                                              "Comprehensive Data Migration Complete.\n\nYour entire local database and media files are now safely synchronized with Google Drive. You can now safely transition to local-only usage.",
+                                              "Comprehensive Data Migration Complete.\n\nYour entire anthology is now safely synchronized. You can now transition across devices safely.",
                                               textAlign: TextAlign.center,
+                                              style: TextStyle(fontSize: 13, height: 1.6),
                                             ),
                                             actions: [
                                               TextButton(
                                                   onPressed: () =>
                                                       Navigator.pop(ctx),
-                                                  child: const Text("Got it"))
+                                                  child: const Text("CLOSE", style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037))))
                                             ],
                                           ),
                                         );
                                       }
                                     },
-                              icon: const Icon(Icons.security_rounded),
-                              label: const Text("Full Migration Sync",
+                              icon: const Icon(Icons.security_rounded, size: 16),
+                              label: const Text("FULL MIGRATION SYNC",
                                   style:
-                                      TextStyle(fontWeight: FontWeight.bold)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.teal.shade700,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(16)),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
+                                      TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
+                              style: TextButton.styleFrom(
+                                foregroundColor: const Color(0xFFB2BEC3),
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            "Ensures ALL local data is in the cloud before backend removal.",
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 10, color: Colors.grey),
                           ),
                       ],
                     ),
                 ],
               ),
             ),
+            const SizedBox(height: 140),
           ],
         ),
       ),
@@ -459,31 +454,34 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Restore from Backup?'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text('RESTORE DATA?', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
         content: const Text(
-            'This will overwrite current local data with the version from Google Drive. This cannot be undone.'),
+            'This action will permanently overwrite local records with your Google Drive archive.',
+            style: TextStyle(fontSize: 13, height: 1.5, color: Color(0xFF636E72))),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
+              child: const Text('CANCEL', style: TextStyle(color: Color(0xFFB2BEC3), fontWeight: FontWeight.w900))),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Restore', style: TextStyle(color: Colors.red)),
+            child: const Text('PROCEED', style: TextStyle(color: Color(0xFFFAB1A0), fontWeight: FontWeight.w900)),
           ),
         ],
       ),
     );
 
     if (confirm == true) {
+      if (!mounted) return;
       setState(() => _isSyncing = true);
       final success = await syncProvider.restoreData();
-      setState(() => _isSyncing = false);
-      if (!mounted) return;
+      if (mounted) setState(() => _isSyncing = false);
 
-      if (success) {
+      if (success && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Restoration successful!'),
-            backgroundColor: Colors.green));
+            backgroundColor: Color(0xFF5D4037)));
       }
     }
   }
@@ -491,15 +489,15 @@ class _BackupSyncScreenState extends State<BackupSyncScreen> {
   Widget _buildDetailRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, size: 18, color: Colors.blue.shade400),
+        Icon(icon, size: 16, color: const Color(0xFFFAB1A0)),
         const SizedBox(width: 12),
         Text("$label: ",
-            style: const TextStyle(fontSize: 13, color: Colors.grey)),
+            style: const TextStyle(fontSize: 12, color: Color(0xFFB2BEC3), fontWeight: FontWeight.w600)),
         Text(value,
             style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2D3748))),
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+                color: Color(0xFF5D4037))),
       ],
     );
   }

@@ -89,11 +89,14 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
                : _buildIngredientsList(),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _navigateToAdd,
-        backgroundColor: const Color(0xFF5D4037),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: const Text('New Ingredient', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 100), // Lifted to clear navigation bar
+        child: FloatingActionButton.extended(
+          onPressed: _navigateToAdd,
+          backgroundColor: const Color(0xFF5D4037),
+          icon: const Icon(Icons.add_rounded, color: Colors.white),
+          label: const Text('New Ingredient', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
       ),
     );
   }
@@ -229,7 +232,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
 
   Widget _buildIngredientsList() {
     return SliverPadding(
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 150),
       sliver: SliverList(
         delegate: SliverChildBuilderDelegate(
           (context, index) {
