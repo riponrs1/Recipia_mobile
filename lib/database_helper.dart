@@ -236,12 +236,14 @@ class DatabaseHelper {
           'section_name': recipe['section_name'],
           'ingredients': (recipe['ingredients'] is String)
               ? recipe['ingredients']
-              : jsonEncode(recipe['ingredients']),
+              : jsonEncode(recipe['ingredients'] ?? []),
           'process': recipe['process'] ?? '',
           'visibility': recipe['visibility'] ?? 'private',
           'item_photo': recipe['item_photo'],
           'created_at': recipe['created_at'],
+          'deleted_at': recipe['deleted_at'],
           'is_pending': 0,
+          'cooked_count': recipe['cooked_count'] ?? 0,
         },
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
@@ -252,7 +254,25 @@ class DatabaseHelper {
 
   Future<void> saveLocalRecipe(Map<String, dynamic> recipe) async {
     final db = await database;
-    await db.insert('recipes', recipe,
+    // Sanitize map to match DB schema and handle complex types
+    final sanitized = {
+      'id': recipe['id'],
+      'user_id': recipe['user_id'],
+      'name': recipe['name'],
+      'brand_name': recipe['brand_name'],
+      'section_name': recipe['section_name'],
+      'ingredients': (recipe['ingredients'] is String)
+          ? recipe['ingredients']
+          : jsonEncode(recipe['ingredients'] ?? []),
+      'process': recipe['process'] ?? '',
+      'visibility': recipe['visibility'] ?? 'private',
+      'item_photo': recipe['item_photo'],
+      'created_at': recipe['created_at'],
+      'deleted_at': recipe['deleted_at'],
+      'is_pending': recipe['is_pending'] ?? 0,
+      'cooked_count': recipe['cooked_count'] ?? 0,
+    };
+    await db.insert('recipes', sanitized,
         conflictAlgorithm: ConflictAlgorithm.replace);
   }
 

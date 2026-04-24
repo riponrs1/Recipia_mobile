@@ -95,36 +95,44 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           _parseIngredients();
           _isFetchingDetails = false;
         });
-        // FIX: Auto-cache full details for offline use
-        await DatabaseHelper().saveLocalRecipe(data);
+        
+        // Background cache update - wrap in try-catch to avoid breaking the UI on DB errors
+        try {
+          await DatabaseHelper().saveLocalRecipe(data);
+        } catch (dbError) {
+          debugPrint('Background caching error: $dbError');
+        }
       }
     } catch (e) {
       debugPrint('Error refreshing recipe: $e');
-      // Offline fallback: Attempt to load full recipe from local database
-      try {
-        final localData = await DatabaseHelper().getRecipeById(_recipe.id);
-        if (localData != null && mounted) {
-          setState(() {
-            _recipe = Recipe.fromJson(localData);
-            _parseIngredients();
-          });
+      // Offline fallback: Only attempt if we haven't successfully fetched fresh data
+      if (_isFetchingDetails) {
+        try {
+          final localData = await DatabaseHelper().getRecipeById(_recipe.id);
+          if (localData != null && mounted) {
+            setState(() {
+              _recipe = Recipe.fromJson(localData);
+              _parseIngredients();
+            });
+          }
+        } catch (dbError) {
+          debugPrint('DB Fallback Error: $dbError');
         }
-      } catch (dbError) {
-        debugPrint('DB Fallback Error: $dbError');
+        if (mounted) setState(() => _isFetchingDetails = false);
       }
-      if (mounted) setState(() => _isFetchingDetails = false);
     }
   }
 
   void _parseIngredients() {
-    if (_recipe.ingredients.isNotEmpty) {
+    _parsedIngredients = []; // Reset first
+    if (_recipe.ingredients.isNotEmpty && _recipe.ingredients != 'null') {
       try {
         final decoded = jsonDecode(_recipe.ingredients);
         if (decoded is List) {
           _parsedIngredients = List<Map<String, dynamic>>.from(decoded);
         }
       } catch (e) {
-        _parsedIngredients = [];
+        debugPrint('Error parsing ingredients: $e');
       }
     }
   }
