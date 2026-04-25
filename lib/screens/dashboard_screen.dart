@@ -65,7 +65,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFFFDFBF7),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF5D4037))),
+        body: Center(child: CircularProgressIndicator(color: Color(0xFF1B4D3E))),
       );
     }
 
@@ -73,7 +73,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: const Color(0xFFFDFBF7),
       body: RefreshIndicator(
         onRefresh: _loadDashboardData,
-        color: const Color(0xFF5D4037),
+        color: const Color(0xFF1B4D3E),
         child: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
@@ -122,7 +122,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         padding: const EdgeInsets.only(bottom: 100),
         child: FloatingActionButton(
           onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeFormScreen())).then((_) => _loadDashboardData()),
-          backgroundColor: const Color(0xFF5D4037),
+          backgroundColor: const Color(0xFF1B4D3E),
           elevation: 12,
           child: const Icon(Icons.add_rounded, color: Colors.white, size: 32),
         ),
@@ -135,7 +135,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       expandedHeight: 180.0,
       pinned: true,
       elevation: 0,
-      backgroundColor: const Color(0xFF5D4037),
+      backgroundColor: const Color(0xFF1B4D3E),
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: false,
         titlePadding: const EdgeInsets.only(left: 24, bottom: 72),
@@ -143,8 +143,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Good Morning, Chef', 
-              style: TextStyle(color: const Color(0xFFFAB1A0).withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            Text('RECIPIA KITCHEN', 
+              style: TextStyle(color: const Color(0xFFE1B12C).withOpacity(0.9), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
             Text(_userName, 
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: -0.5)),
           ],
@@ -152,7 +152,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            Container(color: const Color(0xFF5D4037)),
+            Container(color: const Color(0xFF1B4D3E)),
             Positioned(
               right: -20,
               top: -20,
@@ -200,7 +200,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         decoration: InputDecoration(
           hintText: 'Search your recipes...',
           hintStyle: TextStyle(color: Colors.brown.shade100, fontSize: 14, fontWeight: FontWeight.w500),
-          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFFAB1A0), size: 20),
+          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFE1B12C), size: 20),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
@@ -240,9 +240,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildMetricItem(String value, String label) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFFAB1A0), letterSpacing: 1)),
+        Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFE1B12C), letterSpacing: 1)),
       ],
     );
   }
@@ -258,11 +258,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             fontSize: isSub ? 10 : 16, 
             fontWeight: FontWeight.w900, 
             letterSpacing: isSub ? 1.5 : -0.5,
-            color: isSub ? const Color(0xFFFAB1A0) : const Color(0xFF2D3436))),
+            color: isSub ? const Color(0xFFE1B12C) : const Color(0xFF2D3436))),
         if (onSeeAll != null)
           GestureDetector(
             onTap: onSeeAll,
-            child: const Text('SEE ALL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF5D4037), letterSpacing: 1)),
+            child: const Text('SEE ALL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E), letterSpacing: 1)),
           ),
       ],
     );
@@ -295,7 +295,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Text(icon, style: const TextStyle(fontSize: 16)),
                   const SizedBox(width: 8),
                   Text(name.toUpperCase(), 
-                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF5D4037), letterSpacing: 1)),
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E), letterSpacing: 1)),
                 ],
               ),
             ),
@@ -345,7 +345,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Expanded(
               child: recipe.itemPhoto != null
                   ? _buildRecipeImage(recipe.itemPhoto!)
-                  : Container(color: const Color(0xFF5D4037).withOpacity(0.1)),
+                  : Container(color: const Color(0xFF1B4D3E).withOpacity(0.1)),
             ),
             Padding(
               padding: const EdgeInsets.all(12),
@@ -353,7 +353,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(recipe.sectionName.toUpperCase(), 
-                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFFAB1A0), letterSpacing: 1)),
+                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFE1B12C), letterSpacing: 1)),
                   const SizedBox(height: 2),
                   Text(recipe.name, 
                     maxLines: 1,
@@ -381,8 +381,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           Icon(Icons.auto_stories_rounded, size: 48, color: Colors.brown.shade50),
           const SizedBox(height: 20),
-          const Text('AN EMPTY ANTHOLOGY', 
-            style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          const Text('NO RECIPES YET', 
+            style: TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
         ],
       ),
     );

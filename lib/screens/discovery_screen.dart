@@ -15,7 +15,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
   final _insightService = RecipeInsightService();
   bool _isLoading = true;
   
-  Map<String, double> _anthologyStats = {'totalCost': 0.0, 'totalCalories': 0.0};
+  Map<String, double> _recipeStats = {'totalCost': 0.0, 'totalCalories': 0.0};
   List<Map<String, dynamic>> _discoveredRecipes = [];
   
   double _maxBudget = 50.0;
@@ -32,7 +32,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
   Future<void> _loadInitialData() async {
     setState(() => _isLoading = true);
-    final stats = await _insightService.calculateAnthologyStats();
+    final stats = await _insightService.calculateCollectionStats();
     final discovery = await _insightService.discoverRecipes(
       maxBudget: _maxBudget,
       maxCalories: _maxCalories,
@@ -41,7 +41,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
     if (mounted) {
       setState(() {
-        _anthologyStats = stats;
+        _recipeStats = stats;
         _discoveredRecipes = discovery;
         _isLoading = false;
       });
@@ -88,7 +88,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   _buildDiscoveryTools(),
                   const SizedBox(height: 32),
                   const Text('DISCOVERY RESULTS', 
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFE1B12C))),
                   const SizedBox(height: 16),
                   Container(
                     height: 44,
@@ -106,7 +106,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                       decoration: InputDecoration(
                         hintText: 'Search within results...',
                         hintStyle: TextStyle(color: Colors.grey.shade300, fontSize: 13),
-                        prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFFFAB1A0)),
+                        prefixIcon: const Icon(Icons.search_rounded, size: 18, color: Color(0xFFE1B12C)),
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(vertical: 11),
                       ),
@@ -118,7 +118,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             ),
           ),
           _isLoading 
-            ? const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF5D4037))))
+            ? const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF1B4D3E))))
             : _discoveredRecipes.isEmpty
               ? SliverFillRemaining(child: _buildEmptyState())
               : SliverPadding(
@@ -144,7 +144,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       expandedHeight: 140.0,
       pinned: true,
       elevation: 0,
-      backgroundColor: const Color(0xFF5D4037),
+      backgroundColor: const Color(0xFF1B4D3E),
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: false,
         titlePadding: const EdgeInsets.only(left: 24, bottom: 20),
@@ -152,7 +152,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Culinary', style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+            Text('Culinary', style: TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
             Text('DISCOVERY', 
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24, letterSpacing: -0.5)),
           ],
@@ -166,16 +166,16 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       children: [
         Expanded(
           child: _buildStatCard(
-            'COLLECTION WORTH', 
-            '\$${_anthologyStats['totalCost']?.toStringAsFixed(2)}', 
+            'TOTAL VALUE', 
+            '\$${_recipeStats['totalCost']?.toStringAsFixed(2)}', 
             Icons.account_balance_wallet_rounded,
           ),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: _buildStatCard(
-            'TOTAL ENERGY', 
-            '${_anthologyStats['totalCalories']?.toStringAsFixed(0)} kcal', 
+            'TOTAL CALORIES', 
+            '${_recipeStats['totalCalories']?.toStringAsFixed(0)} kcal', 
             Icons.bolt_rounded,
           ),
         ),
@@ -196,11 +196,11 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, color: const Color(0xFFFAB1A0), size: 20),
+          Icon(icon, color: const Color(0xFFE1B12C), size: 20),
           const SizedBox(height: 12),
           Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFB2BEC3), letterSpacing: 1)),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
         ],
       ),
     );
@@ -210,14 +210,14 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: const Color(0xFF5D4037),
+        color: const Color(0xFF1B4D3E),
         borderRadius: BorderRadius.circular(32),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('SMART FILTERS', 
-            style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            style: TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
           const SizedBox(height: 24),
           _buildSliderLabel('Max Budget', '\$${_maxBudget.toInt()}'),
           Slider(
@@ -225,7 +225,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             min: 5,
             max: 200,
             divisions: 39,
-            activeColor: const Color(0xFFFAB1A0),
+            activeColor: const Color(0xFFE1B12C),
             inactiveColor: Colors.white.withOpacity(0.1),
             onChanged: (val) {
               setState(() => _maxBudget = val);
@@ -239,7 +239,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             min: 100,
             max: 5000,
             divisions: 49,
-            activeColor: const Color(0xFFFAB1A0),
+            activeColor: const Color(0xFFE1B12C),
             inactiveColor: Colors.white.withOpacity(0.1),
             onChanged: (val) {
               setState(() => _maxCalories = val);
@@ -279,12 +279,12 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFFAB1A0) : Colors.white.withOpacity(0.05),
+          color: isSelected ? const Color(0xFFE1B12C) : Colors.white.withOpacity(0.05),
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(label, 
           style: TextStyle(
-            color: isSelected ? const Color(0xFF5D4037) : Colors.white60, 
+            color: isSelected ? const Color(0xFF1B4D3E) : Colors.white60, 
             fontSize: 10, 
             fontWeight: FontWeight.w900
           )
@@ -319,7 +319,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 color: const Color(0xFFFDFBF7),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.restaurant_rounded, color: Color(0xFF5D4037), size: 24),
+              child: const Icon(Icons.restaurant_rounded, color: Color(0xFF1B4D3E), size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -329,7 +329,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   Text(recipe.name, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: Color(0xFF2D3436))),
                   const SizedBox(height: 4),
                   Text(recipe.sectionName.toUpperCase(), 
-                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFFAB1A0), letterSpacing: 1)),
+                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFE1B12C), letterSpacing: 1)),
                 ],
               ),
             ),
@@ -340,7 +340,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text('\$${cost.toStringAsFixed(2)}', 
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF5D4037))),
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF1B4D3E))),
                     const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
@@ -351,10 +351,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                       child: Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFAB1A0).withOpacity(0.1),
+                          color: const Color(0xFFE1B12C).withOpacity(0.1),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.insights_rounded, size: 14, color: Color(0xFFFAB1A0)),
+                        child: const Icon(Icons.insights_rounded, size: 14, color: Color(0xFFE1B12C)),
                       ),
                     ),
                   ],
@@ -376,7 +376,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           Icon(Icons.search_off_rounded, size: 64, color: Colors.brown.shade100),
           const SizedBox(height: 16),
           const Text('NO MATCHES FOUND', 
-            style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
+            style: TextStyle(color: Color(0xFFE1B12C), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 8),
           const Text('Try adjusting your filters', style: TextStyle(color: Colors.grey, fontSize: 14)),
         ],

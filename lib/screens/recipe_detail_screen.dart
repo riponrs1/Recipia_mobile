@@ -130,9 +130,12 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
         final decoded = jsonDecode(_recipe.ingredients);
         if (decoded is List) {
           _parsedIngredients = List<Map<String, dynamic>>.from(decoded);
+        } else {
+           _parsedIngredients = [{'name': decoded.toString(), 'qty': '', 'unit': ''}];
         }
       } catch (e) {
-        debugPrint('Error parsing ingredients: $e');
+        // Legacy support: If it's not JSON, treat the whole string as one ingredient row
+        _parsedIngredients = [{'name': _recipe.ingredients, 'qty': '', 'unit': ''}];
       }
     }
   }
@@ -403,12 +406,13 @@ ${_recipe.process}
 
   @override
   Widget build(BuildContext context) {
-    bool isOwner = _currentUserId == _recipe.userId;
+    // Guest users (ID 0) can manage all local recipes.
+    bool isOwner = _currentUserId == 0 || _currentUserId == _recipe.userId;
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
       extendBody: true, // Allow content to flow behind the glass bar
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF5D4037)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1B4D3E)))
           : CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
@@ -453,7 +457,7 @@ ${_recipe.process}
       elevation: 0,
       pinned: true,
       stretch: true, // Allow stretch effect
-      backgroundColor: const Color(0xFF5D4037),
+      backgroundColor: const Color(0xFF1B4D3E),
       leading: IconButton(
         icon: Container(
           padding: const EdgeInsets.all(8),
@@ -480,7 +484,7 @@ ${_recipe.process}
           children: [
             _recipe.itemPhoto != null
                 ? _buildRecipeImage(_recipe.itemPhoto!)
-                : Container(color: const Color(0xFF5D4037)),
+                : Container(color: const Color(0xFF1B4D3E)),
             const DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -502,7 +506,7 @@ ${_recipe.process}
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(_recipe.sectionName.toUpperCase(), 
-          style: const TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          style: const TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
         const SizedBox(height: 8),
         Text(
           _recipe.name,
@@ -542,9 +546,9 @@ ${_recipe.process}
   Widget _buildMetricItem(String value, String label) {
     return Column(
       children: [
-        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
         const SizedBox(height: 2),
-        Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFFAB1A0), letterSpacing: 1)),
+        Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFE1B12C), letterSpacing: 1)),
       ],
     );
   }
@@ -563,7 +567,7 @@ ${_recipe.process}
         children: [
           const Expanded(
             child: Text('SCALE BATCH', 
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Color(0xFF5D4037))),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Color(0xFF1B4D3E))),
           ),
           _buildBatchIcon(Icons.remove_rounded, () => _updateBatch(-0.5)),
           const SizedBox(width: 8),
@@ -573,13 +577,13 @@ ${_recipe.process}
               controller: _batchController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF5D4037)),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: Color(0xFF1B4D3E)),
               decoration: const InputDecoration(
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
                 border: InputBorder.none,
                 suffixText: 'x',
-                suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF5D4037)),
+                suffixStyle: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Color(0xFF1B4D3E)),
               ),
               onChanged: (val) {
                 final double? newMultiplier = double.tryParse(val);
@@ -604,7 +608,7 @@ ${_recipe.process}
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(color: const Color(0xFFFDFBF7), borderRadius: BorderRadius.circular(10)),
-        child: Icon(icon, size: 18, color: const Color(0xFF5D4037)),
+        child: Icon(icon, size: 18, color: const Color(0xFF1B4D3E)),
       ),
     );
   }
@@ -617,7 +621,7 @@ ${_recipe.process}
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('INGREDIENTS', 
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFE1B12C))),
             Text('${_checkedIngredients.length}/${_parsedIngredients.length} PREPPED', 
               style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFFB2BEC3))),
           ],
@@ -643,9 +647,9 @@ ${_recipe.process}
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: isChecked ? const Color(0xFF5D4037) : Colors.transparent,
+                        color: isChecked ? const Color(0xFF1B4D3E) : Colors.transparent,
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: isChecked ? const Color(0xFF5D4037) : const Color(0xFFFAB1A0).withOpacity(0.4)),
+                        border: Border.all(color: isChecked ? const Color(0xFF1B4D3E) : const Color(0xFFE1B12C).withOpacity(0.4)),
                       ),
                       child: isChecked ? const Icon(Icons.check, size: 12, color: Colors.white) : null,
                     ),
@@ -666,7 +670,7 @@ ${_recipe.process}
                               child: Text('.' * 100, 
                                 maxLines: 1,
                                 overflow: TextOverflow.clip,
-                                style: TextStyle(color: const Color(0xFF5D4037).withOpacity(0.1), letterSpacing: 2, fontWeight: FontWeight.w900)),
+                                style: TextStyle(color: const Color(0xFF1B4D3E).withOpacity(0.1), letterSpacing: 2, fontWeight: FontWeight.w900)),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -674,7 +678,7 @@ ${_recipe.process}
                       ),
                     ),
                     Text('${_formatQty(item['qty'])} ${item['unit'] ?? ''}', 
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
                   ],
                 ),
               ),
@@ -700,24 +704,24 @@ ${_recipe.process}
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAB1A0).withOpacity(0.08),
+        color: const Color(0xFFE1B12C).withOpacity(0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFFAB1A0).withOpacity(0.2)),
+        border: Border.all(color: const Color(0xFFE1B12C).withOpacity(0.2)),
       ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(color: Color(0xFFFAB1A0), shape: BoxShape.circle),
+            decoration: const BoxDecoration(color: Color(0xFFE1B12C), shape: BoxShape.circle),
             child: const Icon(Icons.scale_rounded, color: Colors.white, size: 14),
           ),
           const SizedBox(width: 14),
           const Expanded(
             child: Text('ESTIMATED BATCH WEIGHT', 
-              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF5D4037), letterSpacing: 0.5)),
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E), letterSpacing: 0.5)),
           ),
           Text('${totalG.toStringAsFixed(0)} g', 
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
         ],
       ),
     );
@@ -729,7 +733,7 @@ ${_recipe.process}
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('PREPARATION STEPS', 
-          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFE1B12C))),
         const SizedBox(height: 20),
         ...steps.asMap().entries.map((entry) {
           final i = entry.key;
@@ -740,7 +744,7 @@ ${_recipe.process}
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text((i + 1).toString().padLeft(2, '0'), 
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF5D4037), letterSpacing: -0.5)),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E), letterSpacing: -0.5)),
                 const SizedBox(width: 20),
                 Expanded(
                   child: Text(step, 
@@ -784,7 +788,7 @@ ${_recipe.process}
       icon: Icon(icon, size: 18),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: isDestructive ? const Color(0xFFE74C3C) : const Color(0xFF5D4037),
+        foregroundColor: isDestructive ? const Color(0xFFE74C3C) : const Color(0xFF1B4D3E),
         padding: EdgeInsets.symmetric(vertical: isBrief ? 16 : 22),
         minimumSize: const Size(double.infinity, 0),
         side: BorderSide(color: isDestructive ? const Color(0xFFE74C3C).withOpacity(0.2) : Colors.black.withOpacity(0.05)),

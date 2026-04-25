@@ -1,4 +1,4 @@
-package com.recipia.com
+package com.bicitra.recipia
 
 import io.flutter.embedding.android.FlutterActivity
 

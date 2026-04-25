@@ -229,13 +229,13 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
         title: const Text('CATEGORIES',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.white)),
         centerTitle: true,
-        backgroundColor: const Color(0xFF5D4037),
+        backgroundColor: const Color(0xFF1B4D3E),
         elevation: 0,
         foregroundColor: Colors.white,
       ),
       body: _isLoading
           ? const Center(
-              child: CircularProgressIndicator(color: Color(0xFF5D4037)))
+              child: CircularProgressIndicator(color: Color(0xFF1B4D3E)))
           : _sections.isEmpty
               ? _buildEmptyState()
               : ReorderableListView.builder(
@@ -275,14 +275,14 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
                         leading: Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF5D4037).withOpacity(0.05),
+                            color: const Color(0xFF1B4D3E).withOpacity(0.05),
                             borderRadius: BorderRadius.circular(16),
                           ),
                           child: Icon(
                             isSystem
                                 ? Icons.auto_awesome_mosaic_rounded
                                 : Icons.bookmark_rounded,
-                            color: const Color(0xFF5D4037),
+                            color: const Color(0xFF1B4D3E),
                             size: 20,
                           ),
                         ),
@@ -290,7 +290,7 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
                           section['name'].toString().toUpperCase(),
                           style: const TextStyle(
                             fontWeight: FontWeight.w900,
-                            color: Color(0xFF5D4037),
+                            color: Color(0xFF1B4D3E),
                             fontSize: 13,
                             letterSpacing: 0.5,
                           ),
@@ -304,7 +304,7 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
                                     ? 'LOCAL DRAFT'
                                     : 'PERSONAL COLLECTION'),
                             style: const TextStyle(
-                              color: Color(0xFFFAB1A0),
+                              color: Color(0xFFE1B12C),
                               fontSize: 9,
                               fontWeight: FontWeight.w900,
                               letterSpacing: 1,
@@ -323,7 +323,7 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
                               ),
                               IconButton(
                                 icon: const Icon(Icons.delete_outline_rounded,
-                                    size: 20, color: Color(0xFFFAB1A0)),
+                                    size: 20, color: Color(0xFFE1B12C)),
                                 onPressed: () => _deleteSection(section['id']),
                               ),
                             ] else
@@ -346,7 +346,7 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
         label: const Text('CREATE CATEGORY',
             style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1, color: Colors.white)),
         icon: const Icon(Icons.add_rounded, color: Colors.white),
-        backgroundColor: const Color(0xFF5D4037),
+        backgroundColor: const Color(0xFF1B4D3E),
         elevation: 10,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
@@ -359,10 +359,10 @@ class _RecipeSectionsScreenState extends State<RecipeSectionsScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.layers_clear_rounded,
-              size: 80, color: const Color(0xFF5D4037).withOpacity(0.1)),
+              size: 80, color: const Color(0xFF1B4D3E).withOpacity(0.1)),
           const SizedBox(height: 24),
-          const Text('CLEAN ANTHOLOGY',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFFFAB1A0))),
+          const Text('NO CATEGORIES',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFFE1B12C))),
           const SizedBox(height: 12),
           Text('Define your first culinary section.',
               style: TextStyle(color: Colors.brown.shade200, fontSize: 14)),

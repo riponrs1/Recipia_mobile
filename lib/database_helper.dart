@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper _instance = DatabaseHelper._internal();
@@ -501,5 +502,71 @@ class DatabaseHelper {
 
     // 4. Re-init connection
     _database = await _initDatabase();
+
+    // 5. Correct image paths (Migrate from old package name if necessary)
+    await _migrateImagePaths();
+
+    // 6. Migrate legacy ingredients table if exists
+    await _migrateLegacyIngredients();
+  }
+
+  Future<void> _migrateImagePaths() async {
+    final db = await database;
+    final appDir = await getApplicationDocumentsDirectory();
+    final mediaPath = join(appDir.path, 'media');
+
+    // Update recipes to point to the current app's media directory
+    final recipes = await db.query('recipes');
+    for (var r in recipes) {
+      String? photo = r['item_photo'] as String?;
+      if (photo != null && photo.contains('media/')) {
+        final fileName = basename(photo);
+        final correctedPath = join(mediaPath, fileName);
+        await db.update('recipes', {'item_photo': correctedPath},
+            where: 'id = ?', whereArgs: [r['id']]);
+      }
+    }
+  }
+
+  Future<void> _migrateLegacyIngredients() async {
+    final db = await database;
+    
+    try {
+      // 1. Check if legacy recipe_ingredients table exists
+      final tables = await db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='recipe_ingredients'");
+      if (tables.isEmpty) return;
+
+      debugPrint('Legacy recipe_ingredients table found. Migrating...');
+
+      // 2. Fetch all legacy ingredients
+      final legacyData = await db.query('recipe_ingredients');
+      
+      // 3. Group by recipe_id
+      Map<int, List<Map<String, dynamic>>> grouped = {};
+      for (var row in legacyData) {
+        final recipeId = row['recipe_id'] as int?;
+        if (recipeId == null) continue;
+        
+        grouped.putIfAbsent(recipeId, () => []);
+        grouped[recipeId]!.add({
+          'name': row['name'],
+          'qty': row['quantity'] ?? row['qty'] ?? '',
+          'unit': row['unit'] ?? 'g',
+          'price': row['price'] ?? 0.0,
+          'calories': row['calories'] ?? 0.0,
+        });
+      }
+
+      // 4. Update recipes table
+      for (var entry in grouped.entries) {
+        final jsonStr = jsonEncode(entry.value);
+        await db.update('recipes', {'ingredients': jsonStr}, 
+          where: 'id = ?', whereArgs: [entry.key]);
+      }
+      
+      debugPrint('Migration of ${grouped.length} recipes completed.');
+    } catch (e) {
+      debugPrint('Legacy ingredient migration error: $e');
+    }
   }
 }

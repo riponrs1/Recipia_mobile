@@ -152,6 +152,18 @@ class ApiService {
   Future<Map<String, dynamic>> getHomeStats() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+
+    if (token == null) {
+      final recipes = await DatabaseHelper().getCachedRecipes();
+      final ingredients = await DatabaseHelper().getCachedIngredients();
+      return {
+        'total_recipes': recipes.length,
+        'total_ingredients': ingredients.length,
+        'total_shared': 0,
+        'recent_recipes': recipes.take(5).toList(),
+      };
+    }
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/home'),
@@ -188,6 +200,11 @@ class ApiService {
     syncPendingActions();
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+
+    if (token == null) {
+      return await DatabaseHelper().getCachedRecipes();
+    }
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/recipes'),
@@ -214,6 +231,11 @@ class ApiService {
   Future<List<dynamic>> getMyRecipes() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+
+    if (token == null) {
+      return await DatabaseHelper().getCachedRecipes();
+    }
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/my-recipes'),
@@ -238,6 +260,13 @@ class ApiService {
   Future<Map<String, dynamic>> getRecipe(int id) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+
+    if (token == null) {
+      final recipe = await DatabaseHelper().getRecipeById(id);
+      if (recipe != null) return recipe;
+      throw Exception('Recipe not found locally');
+    }
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/recipes/$id'),
@@ -253,10 +282,8 @@ class ApiService {
         throw Exception('Failed to load recipe');
       }
     } catch (e) {
-      final localRecipes = await DatabaseHelper().getCachedRecipes();
-      final recipe =
-          localRecipes.firstWhere((r) => r['id'] == id, orElse: () => {});
-      if (recipe.isNotEmpty) return recipe;
+      final recipe = await DatabaseHelper().getRecipeById(id);
+      if (recipe != null) return recipe;
       throw Exception('Connection error: $e');
     }
   }
@@ -492,6 +519,11 @@ class ApiService {
   Future<List<dynamic>> getIngredients() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+
+    if (token == null) {
+      return await DatabaseHelper().getCachedIngredients();
+    }
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/ingredients'),
@@ -628,6 +660,13 @@ class ApiService {
   Future<List<dynamic>> getSections() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
+
+    if (token == null) {
+      final cached = await DatabaseHelper().getCachedData('recipe_sections');
+      if (cached != null) return cached as List<dynamic>;
+      return [];
+    }
+
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/recipe-sections'),

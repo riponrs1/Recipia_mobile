@@ -7,7 +7,7 @@ class RecipeInsightService {
   final _db = DatabaseHelper();
 
   /// Calculates the total financial and nutritional value of the entire recipe collection.
-  Future<Map<String, double>> calculateAnthologyStats() async {
+  Future<Map<String, double>> calculateCollectionStats() async {
     final localRecipesData = await _db.getCachedRecipes();
     final pantryItems = await _db.getCachedIngredients();
     

@@ -60,14 +60,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final syncProvider = Provider.of<SyncProvider>(context);
-    final name = _userData?['name'] ?? syncProvider.userName ?? "EXECUTIVE CHEF";
-    final email = _userData?['email'] ?? syncProvider.userEmail ?? "VIRTUAL ATELIER";
+    final name = _userData?['name'] ?? syncProvider.userName ?? "CHEF";
+    final email = _userData?['email'] ?? syncProvider.userEmail ?? "MY KITCHEN";
     final avatarUrl = _userData?['profile']?['avatar'];
 
     return Scaffold(
       backgroundColor: const Color(0xFFFDFBF7),
       body: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF5D4037)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1B4D3E)))
           : CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
@@ -80,17 +80,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         _buildStatsRow(),
                         const SizedBox(height: 40),
                         _buildMenuSection('MANAGEMENT', [
-                          _buildMenuItem(Icons.sync_lock_rounded, const Color(0xFF5D4037), 'ARCHIVAL & SYNC', 'Secure your anthology in the cloud', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BackupSyncScreen()))),
-                          _buildMenuItem(Icons.auto_awesome_mosaic_rounded, const Color(0xFFFAB1A0), 'CUISINES & SECTIONS', 'Organize your culinary categories', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeSectionsScreen()))),
-                          _buildMenuItem(Icons.auto_delete_rounded, const Color(0xFFFAB1A0), 'RECYCLE BIN', 'Restore archived masterpieces', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrashScreen()))),
+                          _buildMenuItem(Icons.sync_lock_rounded, const Color(0xFF1B4D3E), 'BACKUP & SYNC', 'Secure your recipes in the cloud', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BackupSyncScreen()))),
+                          _buildMenuItem(Icons.auto_awesome_mosaic_rounded, const Color(0xFFE1B12C), 'CUISINES & SECTIONS', 'Organize your culinary categories', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeSectionsScreen()))),
+                          _buildMenuItem(Icons.auto_delete_rounded, const Color(0xFFE1B12C), 'RECYCLE BIN', 'Restore deleted recipes', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrashScreen()))),
                         ]),
                         const SizedBox(height: 24),
                         _buildMenuSection('SYSTEM', [
-                          _buildMenuItem(Icons.ios_share_rounded, const Color(0xFFB2BEC3), 'EXPORT RECORDS', 'Download secure database backup', () => _exportDatabase(context)),
-                          _buildMenuItem(Icons.logout_rounded, const Color(0xFF5D4037), 'EXIT ATELIER', 'Safely sign out of your session', () => _handleLogout(context, syncProvider)),
+                          _buildMenuItem(Icons.ios_share_rounded, const Color(0xFFB2BEC3), 'EXPORT DATA', 'Download a backup file', () => _exportDatabase(context)),
+                          _buildMenuItem(Icons.logout_rounded, const Color(0xFF1B4D3E), 'LOGOUT', 'Sign out of your account', () => _handleLogout(context, syncProvider)),
                         ]),
                         const SizedBox(height: 160),
-                        Text('ATELIER CUISINE • v2.0 • GOURMET EDITION', style: TextStyle(color: const Color(0xFF5D4037).withOpacity(0.1), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                        Text('RECIPIA • v2.0 • GOURMET EDITION', style: TextStyle(color: const Color(0xFF1B4D3E).withOpacity(0.1), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
                         const SizedBox(height: 48),
                       ],
                     ),
@@ -107,7 +107,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       pinned: true,
       elevation: 0,
       stretch: true,
-      backgroundColor: const Color(0xFF5D4037),
+      backgroundColor: const Color(0xFF1B4D3E),
       leading: IconButton(
         icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
         onPressed: () => Navigator.pop(context),
@@ -116,7 +116,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            Container(color: const Color(0xFF5D4037)),
+            Container(color: const Color(0xFF1B4D3E)),
             Positioned(
               right: -40,
               top: -40,
@@ -130,7 +130,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   children: [
                     Container(
                       padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(color: Color(0xFFFAB1A0), shape: BoxShape.circle),
+                      decoration: const BoxDecoration(color: Color(0xFFE1B12C), shape: BoxShape.circle),
                       child: CircleAvatar(
                         radius: 56,
                         backgroundColor: Colors.white,
@@ -138,7 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             ? CachedNetworkImageProvider(ApiService.getImageUrl(avatarUrl))
                             : (syncProvider.userPhoto != null ? NetworkImage(syncProvider.userPhoto!) : null) as ImageProvider?,
                         child: (avatarUrl == null && syncProvider.userPhoto == null)
-                            ? Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Color(0xFF5D4037)))
+                            ? Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E)))
                             : null,
                       ),
                     ),
@@ -154,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         },
                         child: const CircleAvatar(
                           radius: 18,
-                          backgroundColor: Color(0xFF5D4037),
+                          backgroundColor: Color(0xFF1B4D3E),
                           child: Icon(Icons.camera_enhance_rounded, color: Colors.white, size: 16),
                         ),
                       ),
@@ -167,7 +167,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                  child: Text(email.toLowerCase(), style: const TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                  child: Text(email.toLowerCase(), style: const TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                 ),
               ],
             ),
@@ -180,7 +180,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildStatsRow() {
     return Row(
       children: [
-        _buildStatCard('MASTERPIECES', _stats['recipeCount'].toString(), Icons.history_edu_rounded),
+        _buildStatCard('TOTAL RECIPES', _stats['recipeCount'].toString(), Icons.history_edu_rounded),
         const SizedBox(width: 12),
         _buildStatCard('CURRENCY', '\$${_stats['pantryValue'].toStringAsFixed(0)}', Icons.payments_outlined),
         const SizedBox(width: 12),
@@ -202,9 +202,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
         child: Column(
           children: [
-            Icon(icon, color: const Color(0xFFFAB1A0), size: 24),
+            Icon(icon, color: const Color(0xFFE1B12C), size: 24),
             const SizedBox(height: 12),
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
             const SizedBox(height: 4),
             Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFB2BEC3), letterSpacing: 1)),
           ],
@@ -219,7 +219,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 16, bottom: 12),
-          child: Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFFAB1A0), letterSpacing: 2)),
+          child: Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFE1B12C), letterSpacing: 2)),
         ),
         Container(
           decoration: BoxDecoration(
@@ -243,7 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         decoration: BoxDecoration(color: color.withOpacity(0.05), borderRadius: BorderRadius.circular(16)),
         child: Icon(icon, color: color, size: 20),
       ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF5D4037), letterSpacing: 0.5)),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF1B4D3E), letterSpacing: 0.5)),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
         child: Text(subtitle, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB2BEC3))),
@@ -265,19 +265,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 24),
-            const Text("DATA ARCHIVAL", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFF5D4037))),
+            const Text("DATA BACKUP", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFF1B4D3E))),
             const SizedBox(height: 32),
-            _buildExportOption(Icons.ios_share_rounded, 'SHARE ANTHOLOGY', 'Export as secure .db file', const Color(0xFF5D4037), () {
+            _buildExportOption(Icons.ios_share_rounded, 'SHARE COLLECTION', 'Export as a .db file', const Color(0xFF1B4D3E), () {
               Navigator.pop(ctx);
               _shareDatabase(context);
             }),
             const SizedBox(height: 16),
-            _buildExportOption(Icons.save_as_rounded, 'LOCAL SNAPSHOT', 'Save records to device storage', const Color(0xFFFAB1A0), () {
+            _buildExportOption(Icons.save_as_rounded, 'SAVE TO PHONE', 'Save recipes to your device', const Color(0xFFE1B12C), () {
               Navigator.pop(ctx);
               _saveDatabaseToDevice(context);
             }),
             const SizedBox(height: 16),
-            _buildExportOption(Icons.unarchive_rounded, 'RESTORE ARCHIVE', 'Import existing .db records', const Color(0xFFB2BEC3), () {
+            _buildExportOption(Icons.unarchive_rounded, 'RESTORE BACKUP', 'Import your saved .db file', const Color(0xFFB2BEC3), () {
               Navigator.pop(ctx);
               _importDatabaseFromFile(context);
             }),
@@ -305,7 +305,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(width: 16),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1, color: Color(0xFF5D4037))),
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1, color: Color(0xFF1B4D3E))),
                 const SizedBox(height: 2),
                 Text(sub, style: const TextStyle(color: Color(0xFFB2BEC3), fontSize: 10, fontWeight: FontWeight.w700)),
               ]),
@@ -322,7 +322,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await DatabaseHelper().closeDatabase();
       final dbDir = await getDatabasesPath();
       final dbPath = p.join(dbDir, 'recipia_offline.db');
-      await Share.shareXFiles([XFile(dbPath)], text: 'Atelier Cuisine Anthology Export');
+      await Share.shareXFiles([XFile(dbPath)], text: 'Recipia Recipe Collection Export');
     } catch (e) {
       debugPrint('Share failed: $e');
     } finally {
@@ -337,9 +337,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final dbDir = await getDatabasesPath();
       final dbPath = p.join(dbDir, 'recipia_offline.db');
       final dbFile = File(dbPath);
-      final fileName = 'Atelier_Archive_${DateTime.now().millisecondsSinceEpoch}.db';
-      await FilePicker.platform.saveFile(dialogTitle: 'Save Anthology', fileName: fileName, type: FileType.any, bytes: await dbFile.readAsBytes());
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archive saved successfully!'), backgroundColor: Color(0xFF5D4037)));
+      final fileName = 'Recipia_Backup_${DateTime.now().millisecondsSinceEpoch}.db';
+      await FilePicker.platform.saveFile(dialogTitle: 'Save Recipes', fileName: fileName, type: FileType.any, bytes: await dbFile.readAsBytes());
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup saved successfully!'), backgroundColor: Color(0xFF1B4D3E)));
     } catch (e) {
       debugPrint('Save failed: $e');
     } finally {
@@ -358,11 +358,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (ctx) => AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: const Text("IMPORT ANTHOLOGY?", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
-          content: const Text("This action will permanently replace your current records with the imported file.", style: TextStyle(fontSize: 13, color: Color(0xFF636E72))),
+          title: const Text("IMPORT RECIPES?", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
+          content: const Text("This will permanently replace your current recipes with the imported file.", style: TextStyle(fontSize: 13, color: Color(0xFF636E72))),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("CANCEL", style: TextStyle(color: Color(0xFFB2BEC3), fontWeight: FontWeight.w900))),
-            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("PROCEED", style: TextStyle(color: Color(0xFFFAB1A0), fontWeight: FontWeight.w900))),
+            TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("PROCEED", style: TextStyle(color: Color(0xFFE1B12C), fontWeight: FontWeight.w900))),
           ],
         ),
       );
@@ -372,8 +372,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         setState(() => _isLoading = true);
         await DatabaseHelper().importDatabase(filePath);
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Archive restored successfully!'), backgroundColor: Color(0xFF5D4037)));
-          context.read<SyncProvider>().refreshAfterRestore();
+          // Refresh local providers
+          final syncProvider = Provider.of<SyncProvider>(context, listen: false);
+          await syncProvider.refreshAfterRestore();
+          
+          setState(() {}); 
+          _loadData();
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recipes restored successfully!'), backgroundColor: Color(0xFF1B4D3E)));
         }
       }
     } catch (e) {
@@ -393,7 +398,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: const Text('Are you sure you want to terminate your current session?', style: TextStyle(fontSize: 13, color: Color(0xFF636E72))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL', style: TextStyle(color: Color(0xFFB2BEC3), fontWeight: FontWeight.w900))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('LOGOUT', style: TextStyle(color: Color(0xFF5D4037), fontWeight: FontWeight.w900))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('LOGOUT', style: TextStyle(color: Color(0xFF1B4D3E), fontWeight: FontWeight.w900))),
         ],
       ),
     );

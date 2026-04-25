@@ -62,8 +62,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
     Widget build(BuildContext context) {
     const Color antiqueCream = Color(0xFFFDFBF7);
-    const Color mahogany = Color(0xFF5D4037);
-    const Color softPeach = Color(0xFFFAB1A0);
+    const Color mahogany = Color(0xFF1B4D3E);
+    const Color softPeach = Color(0xFFE1B12C);
 
     return Scaffold(
       backgroundColor: antiqueCream,
@@ -102,7 +102,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    'JOIN ATELIER',
+                    'CREATE ACCOUNT',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w900,
@@ -149,7 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       TextField(
                         controller: _emailController,
                         style: const TextStyle(fontWeight: FontWeight.w600),
-                        decoration: _inputDecoration(Icons.email_outlined, 'e.g. chef@atelier.com'),
+                        decoration: _inputDecoration(Icons.email_outlined, 'e.g. chef@recipia.com'),
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 20),
@@ -248,7 +248,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       child: Text(
         text,
         style: TextStyle(
-          color: const Color(0xFF5D4037).withOpacity(0.4),
+          color: const Color(0xFF1B4D3E).withOpacity(0.4),
           fontSize: 10,
           fontWeight: FontWeight.w900,
           letterSpacing: 2,
@@ -258,7 +258,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   InputDecoration _inputDecoration(IconData icon, String hint, {Widget? suffixIcon}) {
-    const Color mahogany = Color(0xFF5D4037);
+    const Color mahogany = Color(0xFF1B4D3E);
     return InputDecoration(
       hintText: hint,
       prefixIcon: Icon(icon, color: mahogany.withOpacity(0.3), size: 20),

@@ -83,24 +83,24 @@ class _TrashScreenState extends State<TrashScreen> {
       appBar: AppBar(
         title: const Text('RECYCLE BIN',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.white)),
-        backgroundColor: const Color(0xFF5D4037),
+        backgroundColor: const Color(0xFF1B4D3E),
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF5D4037)))
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1B4D3E)))
           : _trashRecipes.isEmpty
               ? Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.auto_delete_rounded, size: 80, color: const Color(0xFF5D4037).withOpacity(0.1)),
+                      Icon(Icons.auto_delete_rounded, size: 80, color: const Color(0xFF1B4D3E).withOpacity(0.1)),
                       const SizedBox(height: 24),
                       const Text('NOTHING IN STORAGE',
-                          style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                          style: TextStyle(color: Color(0xFFE1B12C), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                       const SizedBox(height: 12),
-                      Text('Your anthology is perfectly organized.',
+                      Text('Your collection is clean.',
                           style: TextStyle(color: Colors.brown.shade200, fontSize: 14)),
                     ],
                   ),
@@ -139,12 +139,12 @@ class _TrashScreenState extends State<TrashScreen> {
                         ),
                         title: Text(item['name'].toString().toUpperCase(),
                             style:
-                                const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037), fontSize: 13, letterSpacing: 0.5)),
+                                const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E), fontSize: 13, letterSpacing: 0.5)),
                         subtitle: Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
                               'ARCHIVED: ${item['deleted_at'].toString().split('T')[0]}',
-                              style: const TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w800)),
+                              style: const TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w800)),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -157,7 +157,7 @@ class _TrashScreenState extends State<TrashScreen> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete_forever_rounded,
-                                  color: Color(0xFFFAB1A0), size: 22),
+                                  color: Color(0xFFE1B12C), size: 22),
                               onPressed: () => _deletePermanently(item['id']),
                               tooltip: 'Delete Permanently',
                             ),

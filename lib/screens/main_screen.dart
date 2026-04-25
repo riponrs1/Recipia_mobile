@@ -100,7 +100,7 @@ class _MainScreenState extends State<MainScreen> {
               border: Border.all(color: Colors.white.withOpacity(0.5)),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFF5D4037).withOpacity(0.08),
+                  color: const Color(0xFF1B4D3E).withOpacity(0.08),
                   blurRadius: 20,
                   offset: const Offset(0, 10),
                 ),
@@ -111,7 +111,7 @@ class _MainScreenState extends State<MainScreen> {
               currentIndex: _currentIndex,
               backgroundColor: Colors.transparent,
               elevation: 0,
-              selectedItemColor: const Color(0xFF5D4037),
+              selectedItemColor: const Color(0xFF1B4D3E),
               unselectedItemColor: Colors.grey.shade400,
               showSelectedLabels: true,
               showUnselectedLabels: false,

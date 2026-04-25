@@ -138,8 +138,9 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             recipe.sectionName.toLowerCase() == _selectedCategory.toLowerCase();
 
         // Only show personal recipes (Community removed)
+        // If offline (userId 0), show everything. If logged in, filter by ID.
         bool matchesUser = true;
-        if (_currentUserId != null) {
+        if (_currentUserId != null && _currentUserId != 0) {
           matchesUser = recipe.userId == _currentUserId;
         }
         
@@ -163,7 +164,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text('CATEGORIES', 
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5, color: Color(0xFFE1B12C))),
                   const SizedBox(height: 12),
                   _buildCategoryList(),
                 ],
@@ -171,7 +172,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             ),
           ),
           _isLoading
-              ? const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF5D4037))))
+              ? const SliverFillRemaining(child: Center(child: CircularProgressIndicator(color: Color(0xFF1B4D3E))))
               : _filteredRecipes.isEmpty
                   ? SliverFillRemaining(child: _buildNoResults())
                   : SliverPadding(
@@ -200,7 +201,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
       expandedHeight: 180.0,
       pinned: true,
       elevation: 0,
-      backgroundColor: const Color(0xFF5D4037),
+      backgroundColor: const Color(0xFF1B4D3E),
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: false,
         titlePadding: const EdgeInsets.only(left: 24, bottom: 68),
@@ -208,7 +209,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Recipe', style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+            Text('Recipe', style: TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
             Text('COLLECTION', 
               style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 24, letterSpacing: -0.5)),
           ],
@@ -216,7 +217,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            Container(color: const Color(0xFF5D4037)),
+            Container(color: const Color(0xFF1B4D3E)),
             Positioned(
               right: -30,
               bottom: -30,
@@ -260,9 +261,9 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
         controller: _searchController,
         onChanged: (_) => _filterRecipes(),
         decoration: InputDecoration(
-          hintText: 'Filter your anthology...',
+          hintText: 'Filter your recipes...',
           hintStyle: TextStyle(color: Colors.brown.shade100, fontSize: 14, fontWeight: FontWeight.w500),
-          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFFAB1A0), size: 20),
+          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFFE1B12C), size: 20),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(vertical: 14),
         ),
@@ -289,7 +290,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF5D4037) : Colors.white,
+                  color: isSelected ? const Color(0xFF1B4D3E) : Colors.white,
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: isSelected ? Colors.transparent : Colors.black.withOpacity(0.05)),
                 ),
@@ -329,7 +330,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
             Expanded(
               child: recipe.itemPhoto != null
                   ? _buildRecipeImage(recipe.itemPhoto!)
-                  : Container(color: const Color(0xFF5D4037).withOpacity(0.1)),
+                  : Container(color: const Color(0xFF1B4D3E).withOpacity(0.1)),
             ),
             Padding(
               padding: const EdgeInsets.all(12),
@@ -337,7 +338,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(recipe.sectionName.toUpperCase(), 
-                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFFAB1A0), letterSpacing: 1)),
+                    style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFE1B12C), letterSpacing: 1)),
                   const SizedBox(height: 2),
                   Text(recipe.name, 
                     maxLines: 1,
@@ -377,7 +378,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
       padding: const EdgeInsets.only(bottom: 100),
       child: FloatingActionButton(
         onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const RecipeFormScreen())).then((_) => _loadRecipes()),
-        backgroundColor: const Color(0xFF5D4037),
+        backgroundColor: const Color(0xFF1B4D3E),
         elevation: 12,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: const Icon(Icons.add_rounded, color: Colors.white, size: 32),
@@ -393,7 +394,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
           Icon(Icons.menu_book_rounded, size: 80, color: Colors.brown.shade50),
           const SizedBox(height: 16),
           const Text('YOUR COLLECTION IS EMPTY', 
-            style: TextStyle(color: Color(0xFFFAB1A0), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
+            style: TextStyle(color: Color(0xFFE1B12C), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 2)),
         ],
       ),
     );

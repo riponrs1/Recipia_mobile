@@ -38,8 +38,8 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF5D4037),
-          primary: const Color(0xFF5D4037),
+          seedColor: const Color(0xFF1B4D3E),
+          primary: const Color(0xFF1B4D3E),
           secondary: const Color(0xFF8D6E63),
           surface: const Color(0xFFFFFBF0),
           background: const Color(0xFFFFFBF0),
@@ -79,7 +79,7 @@ class MyApp extends StatelessWidget {
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF5D4037),
+            backgroundColor: const Color(0xFF1B4D3E),
             foregroundColor: Colors.white,
             elevation: 0,
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),

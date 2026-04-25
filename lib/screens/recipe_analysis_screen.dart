@@ -99,12 +99,12 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
       backgroundColor: const Color(0xFFFDFBF7),
       appBar: AppBar(
         title: const Text('CULINARY ANALYSIS', 
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Color(0xFF5D4037))),
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Color(0xFF1B4D3E))),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF5D4037), size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1B4D3E), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -131,7 +131,7 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Color(0xFF2D3436), letterSpacing: -0.5)),
           const SizedBox(height: 4),
           Text('SESSION BREAKDOWN • ${widget.batchMultiplier}X BATCH', 
-            style: const TextStyle(color: Color(0xFFFAB1A0), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+            style: const TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
           const SizedBox(height: 16),
           _buildInfoBanner(),
         ],
@@ -143,9 +143,9 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFAB1A0).withOpacity(0.1),
+        color: const Color(0xFFE1B12C).withOpacity(0.1),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFAB1A0).withOpacity(0.3)),
+        border: Border.all(color: const Color(0xFFE1B12C).withOpacity(0.3)),
       ),
       child: const Row(
         children: [
@@ -194,10 +194,10 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
         leading: Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: const Color(0xFF5D4037).withOpacity(0.1),
+            color: const Color(0xFF1B4D3E).withOpacity(0.1),
             borderRadius: BorderRadius.circular(14),
           ),
-          child: const Icon(Icons.restaurant_rounded, color: Color(0xFF5D4037), size: 20),
+          child: const Icon(Icons.restaurant_rounded, color: Color(0xFF1B4D3E), size: 20),
         ),
         title: Text(item['name'], style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF2D3436))),
         subtitle: Text('${item['qty']} ${item['unit']}', style: TextStyle(color: Colors.brown.shade200, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -263,7 +263,7 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
             fillColor: const Color(0xFFFDFBF7),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.black.withOpacity(0.05))),
             enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: Colors.black.withOpacity(0.05))),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFFAB1A0))),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFFE1B12C))),
           ),
         ),
       ],
@@ -274,10 +274,10 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
     return Container(
       padding: EdgeInsets.fromLTRB(24, 20, 24, MediaQuery.of(context).padding.bottom + 20),
       decoration: BoxDecoration(
-        color: const Color(0xFF5D4037),
+        color: const Color(0xFF1B4D3E),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF5D4037).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, -5)),
+          BoxShadow(color: const Color(0xFF1B4D3E).withOpacity(0.3), blurRadius: 20, offset: const Offset(0, -5)),
         ],
       ),
       child: Row(
@@ -288,11 +288,11 @@ class _RecipeAnalysisScreenState extends State<RecipeAnalysisScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context),
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFAB1A0),
+              backgroundColor: const Color(0xFFE1B12C),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
-            child: const Text('DONE', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+            child: const Text('DONE', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
           ),
         ],
       ),

@@ -226,7 +226,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       appBar: AppBar(
         title: const Text('EDIT PROFILE',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.white)),
-        backgroundColor: const Color(0xFF5D4037),
+        backgroundColor: const Color(0xFF1B4D3E),
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
@@ -245,11 +245,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                       padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFFAB1A0), width: 2),
+                        border: Border.all(color: const Color(0xFFE1B12C), width: 2),
                       ),
                       child: CircleAvatar(
                         radius: 60,
-                        backgroundColor: const Color(0xFF5D4037).withOpacity(0.1),
+                        backgroundColor: const Color(0xFF1B4D3E).withOpacity(0.1),
                         backgroundImage: _avatarImage != null
                             ? FileImage(_avatarImage!)
                             : (currentAvatarUrl != null
@@ -257,7 +257,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                     ApiService.getImageUrl(currentAvatarUrl))
                                 : null) as ImageProvider?,
                         child: (_avatarImage == null && currentAvatarUrl == null)
-                            ? const Icon(Icons.person_rounded, size: 60, color: Color(0xFF5D4037))
+                            ? const Icon(Icons.person_rounded, size: 60, color: Color(0xFF1B4D3E))
                             : null,
                       ),
                     ),
@@ -269,7 +269,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: const BoxDecoration(
-                            color: Color(0xFF5D4037),
+                            color: Color(0xFF1B4D3E),
                             shape: BoxShape.circle,
                           ),
                           child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
@@ -314,7 +314,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF5D4037),
+                    backgroundColor: const Color(0xFF1B4D3E),
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -350,7 +350,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(label,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Color(0xFFFAB1A0))),
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Color(0xFFE1B12C))),
         ),
         Container(
           decoration: BoxDecoration(
@@ -368,9 +368,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             controller: controller,
             maxLines: maxLines,
             keyboardType: keyboardType,
-            style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF5D4037), fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1B4D3E), fontSize: 14),
             decoration: InputDecoration(
-              prefixIcon: Icon(icon, color: const Color(0xFF5D4037).withOpacity(0.3), size: 20),
+              prefixIcon: Icon(icon, color: const Color(0xFF1B4D3E).withOpacity(0.3), size: 20),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             ),

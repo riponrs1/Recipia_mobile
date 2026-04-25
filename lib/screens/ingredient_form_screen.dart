@@ -97,11 +97,11 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
       backgroundColor: const Color(0xFFFDFBF7),
       appBar: AppBar(
         title: Text(isEdit ? 'Edit Ingredient' : 'New Ingredient', 
-          style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037))),
+          style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF5D4037), size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Color(0xFF1B4D3E), size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -132,7 +132,7 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
               ),
               const SizedBox(height: 24),
               const Text('Calculations Details', 
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF5D4037))),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18, color: Color(0xFF1B4D3E))),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -179,7 +179,7 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
       children: [
         Text(title, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, color: Color(0xFF2D3436), letterSpacing: -1)),
         const SizedBox(height: 4),
-        Container(width: 60, height: 4, decoration: BoxDecoration(color: const Color(0xFFFAB1A0), borderRadius: BorderRadius.circular(2))),
+        Container(width: 60, height: 4, decoration: BoxDecoration(color: const Color(0xFFE1B12C), borderRadius: BorderRadius.circular(2))),
       ],
     );
   }
@@ -205,7 +205,7 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: TextStyle(color: Colors.brown.shade100),
-            prefixIcon: Icon(icon, color: const Color(0xFFFAB1A0), size: 22),
+            prefixIcon: Icon(icon, color: const Color(0xFFE1B12C), size: 22),
             filled: true,
             fillColor: Colors.white,
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
@@ -219,7 +219,7 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(20),
-              borderSide: const BorderSide(color: Color(0xFFFAB1A0), width: 2),
+              borderSide: const BorderSide(color: Color(0xFFE1B12C), width: 2),
             ),
           ),
         ),
@@ -237,12 +237,12 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
           value: _selectedCategory,
           items: _categories.map((cat) => DropdownMenuItem(value: cat, child: Text(cat))).toList(),
           onChanged: (val) => setState(() => _selectedCategory = val!),
-          icon: const Icon(Icons.expand_more_rounded, color: Color(0xFFFAB1A0)),
+          icon: const Icon(Icons.expand_more_rounded, color: Color(0xFFE1B12C)),
           dropdownColor: Colors.white,
           decoration: InputDecoration(
             filled: true,
             fillColor: Colors.white,
-            prefixIcon: const Icon(Icons.category_rounded, color: Color(0xFFFAB1A0), size: 22),
+            prefixIcon: const Icon(Icons.category_rounded, color: Color(0xFFE1B12C), size: 22),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(20),
               borderSide: BorderSide(color: Colors.black.withOpacity(0.05)),
@@ -263,11 +263,11 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
       child: ElevatedButton(
         onPressed: _isLoading ? null : _submit,
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF5D4037),
+          backgroundColor: const Color(0xFF1B4D3E),
           padding: const EdgeInsets.symmetric(vertical: 20),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           elevation: 4,
-          shadowColor: const Color(0xFF5D4037).withOpacity(0.4),
+          shadowColor: const Color(0xFF1B4D3E).withOpacity(0.4),
         ),
         child: _isLoading 
             ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))

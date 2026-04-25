@@ -74,21 +74,35 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _enterOfflineMode() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('is_offline', true);
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainScreen()),
-      );
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => _isLoading = true);
+    try {
+      final syncProvider = Provider.of<SyncProvider>(context, listen: false);
+      await syncProvider.signIn();
+      if (syncProvider.isGoogleSignedIn) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => const MainScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = "Google Sign-In failed.";
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     const Color antiqueCream = Color(0xFFFDFBF7);
-    const Color mahogany = Color(0xFF5D4037);
-    const Color softPeach = Color(0xFFFAB1A0);
+    const Color mahogany = Color(0xFF1B4D3E);
+    const Color softPeach = Color(0xFFE1B12C);
 
     return Scaffold(
       backgroundColor: antiqueCream,
@@ -136,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   Text(
-                    'Your Personal Culinary Atelier',
+                    'Your Personal Recipe Book',
                     style: TextStyle(
                       fontSize: 14,
                       color: mahogany.withOpacity(0.5),
@@ -176,7 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextField(
                         controller: _emailController,
                         style: const TextStyle(fontWeight: FontWeight.w600),
-                        decoration: _inputDecoration(Icons.email_outlined, 'e.g. chef@atelier.com'),
+                        decoration: _inputDecoration(Icons.email_outlined, 'e.g. chef@recipia.com'),
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 24),
@@ -252,26 +266,29 @@ class _LoginScreenState extends State<LoginScreen> {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             ),
                             child: const Text(
-                              'Enter Atelier',
+                              'LOGIN',
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                             ),
                           ),
                   ),
                   const SizedBox(height: 16),
                   
-                  // Guest / Offline Mode
+                  // Google Sign In
                   SizedBox(
                     width: double.infinity,
                     height: 64,
                     child: OutlinedButton.icon(
-                      onPressed: _enterOfflineMode,
-                      icon: const Icon(Icons.offline_bolt_rounded, size: 20),
+                      onPressed: _handleGoogleSignIn,
+                      icon: Image.network(
+                        'https://www.gstatic.com/images/branding/product/1x/googleg_48dp.png',
+                        height: 24,
+                      ),
                       label: const Text(
-                        'Continue as Guest (Offline)',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
+                        'LOGIN WITH GOOGLE',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                       ),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: mahogany.withOpacity(0.7),
+                        foregroundColor: mahogany,
                         side: BorderSide(color: mahogany.withOpacity(0.15), width: 2),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                       ),
@@ -312,7 +329,7 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Text(
         text,
         style: TextStyle(
-          color: const Color(0xFF5D4037).withOpacity(0.4),
+          color: const Color(0xFF1B4D3E).withOpacity(0.4),
           fontSize: 10,
           fontWeight: FontWeight.w900,
           letterSpacing: 2,
@@ -322,7 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   InputDecoration _inputDecoration(IconData icon, String hint, {Widget? suffixIcon}) {
-    const Color mahogany = Color(0xFF5D4037);
+    const Color mahogany = Color(0xFF1B4D3E);
     return InputDecoration(
       hintText: hint,
       prefixIcon: Icon(icon, color: mahogany.withOpacity(0.3), size: 20),

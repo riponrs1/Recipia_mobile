@@ -430,7 +430,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         title: const Text('BACKUP & SYNC',
             style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5, fontSize: 13, color: Colors.white)),
         centerTitle: true,
-        backgroundColor: const Color(0xFF5D4037),
+        backgroundColor: const Color(0xFF1B4D3E),
         elevation: 0,
       ),
       body: _isLoading || _sections.isEmpty

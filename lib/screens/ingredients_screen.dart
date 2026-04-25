@@ -93,7 +93,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
         padding: const EdgeInsets.only(bottom: 100), // Lifted to clear navigation bar
         child: FloatingActionButton.extended(
           onPressed: _navigateToAdd,
-          backgroundColor: const Color(0xFF5D4037),
+          backgroundColor: const Color(0xFF1B4D3E),
           icon: const Icon(Icons.add_rounded, color: Colors.white),
           label: const Text('New Ingredient', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         ),
@@ -107,7 +107,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
       floating: false,
       pinned: true,
       elevation: 0,
-      backgroundColor: const Color(0xFF5D4037),
+      backgroundColor: const Color(0xFF1B4D3E),
       flexibleSpace: FlexibleSpaceBar(
         centerTitle: false,
         titlePadding: const EdgeInsets.only(left: 24, bottom: 60),
@@ -123,7 +123,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            Container(color: const Color(0xFF5D4037)),
+            Container(color: const Color(0xFF1B4D3E)),
             Positioned(
               right: -50,
               top: -50,
@@ -209,7 +209,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
                   });
                 }
               },
-              selectedColor: const Color(0xFFFAB1A0).withOpacity(0.2),
+              selectedColor: const Color(0xFFE1B12C).withOpacity(0.2),
               labelStyle: TextStyle(
                 color: isSelected ? const Color(0xFFD63031) : const Color(0xFF636E72),
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
@@ -281,7 +281,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
                   children: [
                     if (item.price != null && item.unit != null)
                       Text('\$${item.price!.toStringAsFixed(2)}/${item.unit}', 
-                           style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF5D4037), fontSize: 14)),
+                           style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E), fontSize: 14)),
                     if (item.calories != null)
                       Text('${item.calories!.toInt()} kcal', 
                            style: TextStyle(color: Colors.grey.shade400, fontSize: 11, fontWeight: FontWeight.w600)),
