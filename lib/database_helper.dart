@@ -224,10 +224,27 @@ class DatabaseHelper {
 
   Future<void> cacheRecipes(List<dynamic> recipes) async {
     final db = await database;
-    final batch = db.batch();
-
+    
     for (var recipe in recipes) {
-      batch.insert(
+      // Check if recipe already exists to preserve details if missing in list view
+      final existing = await db.query('recipes', columns: ['ingredients', 'process'], where: 'id = ?', whereArgs: [recipe['id']]);
+      
+      String ingredients = (recipe['ingredients'] is String)
+          ? recipe['ingredients']
+          : jsonEncode(recipe['ingredients'] ?? []);
+      
+      String process = recipe['process'] ?? '';
+
+      if (existing.isNotEmpty) {
+        if ((ingredients == '[]' || ingredients == '') && (existing.first['ingredients'] as String? ?? '').isNotEmpty) {
+          ingredients = existing.first['ingredients'] as String;
+        }
+        if (process == '' && (existing.first['process'] as String? ?? '').isNotEmpty) {
+          process = existing.first['process'] as String;
+        }
+      }
+
+      await db.insert(
         'recipes',
         {
           'id': recipe['id'],
@@ -235,10 +252,8 @@ class DatabaseHelper {
           'name': recipe['name'],
           'brand_name': recipe['brand_name'],
           'section_name': recipe['section_name'],
-          'ingredients': (recipe['ingredients'] is String)
-              ? recipe['ingredients']
-              : jsonEncode(recipe['ingredients'] ?? []),
-          'process': recipe['process'] ?? '',
+          'ingredients': ingredients,
+          'process': process,
           'visibility': recipe['visibility'] ?? 'private',
           'item_photo': recipe['item_photo'],
           'created_at': recipe['created_at'],
@@ -249,23 +264,37 @@ class DatabaseHelper {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     }
-
-    await batch.commit(noResult: true);
   }
 
   Future<void> saveLocalRecipe(Map<String, dynamic> recipe) async {
     final db = await database;
-    // Sanitize map to match DB schema and handle complex types
+    
+    // Check if we already have detailed data for this recipe
+    final existing = await db.query('recipes', columns: ['ingredients', 'process'], where: 'id = ?', whereArgs: [recipe['id']]);
+    
+    String ingredients = (recipe['ingredients'] is String)
+          ? recipe['ingredients']
+          : jsonEncode(recipe['ingredients'] ?? []);
+    
+    String process = recipe['process'] ?? '';
+
+    if (existing.isNotEmpty) {
+      if ((ingredients == '[]' || ingredients == '') && (existing.first['ingredients'] as String? ?? '').isNotEmpty) {
+        ingredients = existing.first['ingredients'] as String;
+      }
+      if (process == '' && (existing.first['process'] as String? ?? '').isNotEmpty) {
+        process = existing.first['process'] as String;
+      }
+    }
+
     final sanitized = {
       'id': recipe['id'],
       'user_id': recipe['user_id'],
       'name': recipe['name'],
       'brand_name': recipe['brand_name'],
       'section_name': recipe['section_name'],
-      'ingredients': (recipe['ingredients'] is String)
-          ? recipe['ingredients']
-          : jsonEncode(recipe['ingredients'] ?? []),
-      'process': recipe['process'] ?? '',
+      'ingredients': ingredients,
+      'process': process,
       'visibility': recipe['visibility'] ?? 'private',
       'item_photo': recipe['item_photo'],
       'created_at': recipe['created_at'],
