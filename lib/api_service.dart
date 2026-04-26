@@ -916,11 +916,19 @@ class ApiService {
 
   Future<String?> fetchAllDataForOffline() async {
     try {
-      // Fetch everything sequentially to ensure local DB cache is populated
-      await getRecipes();
+      // 1. Fetch the main lists
+      final recipesList = await getRecipes();
       await getIngredients();
       await getSections();
       await getUser();
+
+      // 2. Fetch full details for each recipe to ensure ingredients/process are cached
+      for (var r in recipesList) {
+        if (r['id'] != null) {
+          await getRecipe(r['id']);
+        }
+      }
+      
       return null;
     } catch (e) {
       return e.toString();

@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../sync_provider.dart';
 import 'dashboard_screen.dart';
 import 'recipe_list_screen.dart';
 import 'profile_screen.dart';
@@ -16,6 +18,35 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  bool _hasInitialSyncRun = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _triggerBackgroundSync();
+  }
+
+  Future<void> _triggerBackgroundSync() async {
+    if (_hasInitialSyncRun) return;
+    
+    // Give the app a moment to settle
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (mounted) {
+      final syncProvider = Provider.of<SyncProvider>(context, listen: false);
+      // Only sync if we haven't downloaded data yet (to avoid wasting battery/data)
+      final isNewInstall = await syncProvider.detectMissingLocalData();
+      
+      if (isNewInstall) {
+        debugPrint('New account detected. Triggering background data sync...');
+        await syncProvider.downloadAllFromServer();
+      }
+      
+      setState(() {
+        _hasInitialSyncRun = true;
+      });
+    }
+  }
 
   final _navigatorKeys = [
     GlobalKey<NavigatorState>(),
