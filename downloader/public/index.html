@@ -3,84 +3,225 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Project Downloader</title>
+    <title>Premium POS | Distribution</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; }
-        h1 { font-size: 24px; margin-bottom: 20px; }
-        .breadcrumb { margin-bottom: 15px; background: #f5f5f5; padding: 10px; border-radius: 6px; }
-        .breadcrumb a { color: #0366d6; text-decoration: none; cursor: pointer; }
-        .breadcrumb a:hover { text-decoration: underline; }
-        .file-list { list-style: none; padding: 0; border: 1px solid #e1e4e8; border-radius: 6px; }
-        .file-item { padding: 10px 15px; border-bottom: 1px solid #e1e4e8; display: flex; align-items: center; }
-        .file-item:last-child { border-bottom: none; }
-        .file-item:hover { background-color: #f6f8fa; }
-        .file-icon { margin-right: 10px; font-size: 20px; }
-        .file-name { flex-grow: 1; color: #0366d6; cursor: pointer; text-decoration: none; }
-        .file-name:hover { text-decoration: underline; }
-        .download-btn { background: #28a745; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 14px; }
+        :root {
+            --primary: #4F46E5;
+            --bg: #F8FAFC;
+            --card: #FFFFFF;
+            --text: #1E293B;
+            --muted: #64748B;
+            --border: #E2E8F0;
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            background: radial-gradient(circle at top left, #EEF2FF, #F8FAFC, #E0E7FF);
+            background-attachment: fixed;
+            color: var(--text);
+            margin: 0;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        * { outline: none !important; }
+
+        .container { width: 100%; max-width: 800px; }
+
+        header { margin-bottom: 12px; text-align: left; width: 100%; display: flex; align-items: center; }
+        .app-logo { width: 40px; height: 40px; border-radius: 10px; margin-right: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .header-text h1 { font-size: 19px; font-weight: 800; margin: 0; color: #111827; letter-spacing: -0.5px; }
+        .header-text p { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+        .breadcrumb { 
+            background: var(--card);
+            padding: 12px 18px; 
+            border-radius: 12px; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+            font-size: 17px;
+            margin-bottom: 16px;
+            border: 1px solid var(--border);
+        }
+        .breadcrumb a { color: var(--primary); text-decoration: none; font-weight: 700; cursor: pointer; }
+
+        table { 
+            width: 100%; 
+            border-collapse: separate; 
+            border-spacing: 0; 
+            background: var(--card); 
+            border-radius: 16px; 
+            overflow: hidden; 
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+        }
+        
+        th:nth-child(1) { width: auto; }
+        th.hide-mobile { width: 140px; } 
+        th:last-child { width: 65px; text-align: right; } 
+        
+        th { 
+            background: #F8FAFC; 
+            padding: 16px 20px; 
+            text-align: left; 
+            font-size: 13px; 
+            font-weight: 700; 
+            text-transform: uppercase; 
+            letter-spacing: 0.05em; 
+            color: var(--muted); 
+            border-bottom: 1px solid var(--border);
+        }
+
+        td { padding: 18px 20px; border-bottom: 1px solid #F1F5F9; font-size: 17px; }
+        tr:last-child td { border-bottom: none; }
+
+        .file-link { color: var(--text); font-weight: 700; text-decoration: none; display: flex; align-items: center; cursor: pointer; }
+        .file-link:hover span:last-child { color: var(--primary); }
+        .icon { margin-right: 14px; font-size: 21px; opacity: 0.8; }
+        
+        .meta { color: var(--muted); font-size: 14px; font-weight: 500; }
+        .dl-icon { 
+            text-decoration: none; 
+            font-size: 21px; 
+            padding: 8px; 
+            background: #F1F5F9; 
+            border-radius: 10px; 
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+        .dl-icon:hover { background: var(--primary); color: white; transform: scale(1.1); }
+
+        .refresh-btn { 
+            background: #fff; 
+            border: 1px solid var(--border); 
+            color: var(--muted);
+            padding: 10px; 
+            border-radius: 12px; 
+            cursor: pointer; 
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        @media (max-width: 640px) {
+            body { padding: 12px; }
+            .hide-mobile { display: none; }
+            td { padding: 10px 10px; }
+            .file-link { font-size: 17px; display: block; word-break: break-all; }
+            .icon { float: left; margin-top: 3px; font-size: 20px; width: 24px; }
+            .meta-mobile { display: block !important; margin-top: 2px; font-size: 13px; opacity: 0.8; padding-left: 38px; }
+        }
     </style>
 </head>
 <body>
-    <h1>📂 Project Files</h1>
-    <div class="breadcrumb" id="breadcrumb"></div>
-    <ul class="file-list" id="fileList"></ul>
+    <div class="container">
+        <header>
+            <div style="display:flex; align-items:center; flex:1">
+                <img src="/logo" class="app-logo" alt="Logo" onerror="this.style.display='none'; document.getElementById('logo-placeholder').style.display='flex'">
+                <div id="logo-placeholder" class="app-logo" style="display:none; align-items:center; justify-content:center; background:var(--primary); color:white; font-size:20px; font-weight:800; margin-right:12px">🚀</div>
+                <div class="header-text">
+                    <h1 id="project-title">Loading...</h1>
+                    <p id="project-subtitle">Access your latest builds and receipts</p>
+                </div>
+            </div>
+            <button onclick="load(currentPath)" class="refresh-btn">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"></path><polyline points="21 3 21 8 16 8"></polyline></svg>
+            </button>
+        </header>
+
+        <div class="breadcrumb" id="breadcrumb"></div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Resource Name</th>
+                    <th class="hide-mobile">Size</th>
+                    <th class="hide-mobile">Modified</th>
+                    <th style="text-align:right">Get</th>
+                </tr>
+            </thead>
+            <tbody id="list"></tbody>
+        </table>
+    </div>
 
     <script>
         let currentPath = '';
 
-        async function loadFiles(path = '') {
-            currentPath = path;
-            const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
-            const data = await res.json();
-            render(data);
+        function formatSize(b) {
+            if (!b) return '-';
+            const k = 1024;
+            const i = Math.floor(Math.log(b) / Math.log(k));
+            return (b / Math.pow(k, i)).toFixed(1) + ' ' + ['B','KB','MB','GB'][i];
         }
 
-        function render(data) {
-            const list = document.getElementById('fileList');
-            const breadcrumb = document.getElementById('breadcrumb');
-            
-            // Render Breadcrumb
-            const parts = data.path.split('/').filter(p => p);
-            let breadcrumbHtml = `<a onclick="loadFiles('')">🏠 Root</a>`;
-            let accPath = '';
-            parts.forEach(part => {
-                accPath += (accPath ? '/' : '') + part;
-                breadcrumbHtml += ` / <a onclick="loadFiles('${accPath}')">${part}</a>`;
-            });
-            breadcrumb.innerHTML = breadcrumbHtml;
+        function formatTime(s) {
+            const d = new Date(s);
+            const now = new Date();
+            const diffMin = Math.floor((now - d) / 60000);
+            if (diffMin < 1) return 'Just now';
+            if (diffMin < 60) return diffMin + 'm ago';
+            return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
 
-            // Render Files
-            list.innerHTML = '';
+        async function load(path = null) {
+            try {
+                if (path === null) {
+                    path = localStorage.getItem('currentPath') || '';
+                }
+                currentPath = path;
+                localStorage.setItem('currentPath', path); 
+                
+                const res = await fetch(`/api/files?path=${encodeURIComponent(path)}`);
+                if (!res.ok) throw new Error('Failed to load');
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
             
-            if (data.path !== '') {
-                const parentPath = data.path.split('/').slice(0, -1).join('/');
-                list.innerHTML += `
-                    <li class="file-item" onclick="loadFiles('${parentPath}')">
-                        <span class="file-icon">Up</span>
-                        <span class="file-name">..</span>
-                    </li>`;
+            // Dynamic Project Name
+            if (data.projectName) {
+                document.getElementById('project-title').innerText = data.projectName;
+                document.getElementById('project-subtitle').innerText = `Latest resources for ${data.projectName}`;
+                document.title = `${data.projectName} | Distribution`;
             }
 
-            data.files.sort((a, b) => b.isDirectory - a.isDirectory || a.name.localeCompare(b.name)).forEach(file => {
-                const icon = file.isDirectory ? '📁' : '📄';
-                const clickAction = file.isDirectory 
-                    ? `onclick="loadFiles('${file.path}')"` 
-                    : `href="/download?path=${encodeURIComponent(file.path)}"`; // Download trigger
-                
-                const nameAction = file.isDirectory 
-                    ? `onclick="loadFiles('${file.path}')"` 
-                    : `href="/download?path=${encodeURIComponent(file.path)}"`; 
-
-                list.innerHTML += `
-                    <li class="file-item">
-                        <span class="file-icon">${icon}</span>
-                        <a class="file-name" ${nameAction}>${file.name}</a>
-                        ${!file.isDirectory ? `<a class="download-btn" href="/download?path=${encodeURIComponent(file.path)}">Download</a>` : ''}
-                    </li>`;
+            const parts = data.path.split('/').filter(p => p);
+            let bHtml = `<a onclick="load('')">🏠 ROOT</a>`;
+            let acc = '';
+            parts.forEach(p => { acc += (acc ? '/' : '') + p; bHtml += ` <span style="color:#CBD5E1">/</span> <a onclick="load('${acc}')">${p.toUpperCase()}</a>`; });
+            document.getElementById('breadcrumb').innerHTML = bHtml;
+            const tbody = document.getElementById('list');
+            tbody.innerHTML = '';
+            data.files.sort((a, b) => new Date(b.mtime) - new Date(a.mtime)).forEach((f, i) => {
+                const isApk = f.name.endsWith('.apk');
+                const isPdf = f.name.endsWith('.pdf');
+                const icon = f.isDirectory ? '📁' : (isApk ? '📱' : (isPdf ? '🧾' : '📄'));
+                const url = `/download?path=${encodeURIComponent(f.path)}`;
+                const action = f.isDirectory ? `onclick="load('${f.path}')"` : `href="${url}"`;
+                tbody.innerHTML += `
+                    <tr>
+                        <td>
+                            <a class="file-link" ${action}>
+                                <span class="icon">${icon}</span>
+                                <span>${f.name}</span>
+                            </a>
+                            ${!f.isDirectory ? `<div class="meta meta-mobile" style="display:none">${formatSize(f.size)} • ${formatTime(f.mtime)}</div>` : ''}
+                        </td>
+                        <td class="meta hide-mobile">${f.isDirectory ? '' : formatSize(f.size)}</td>
+                        <td class="meta hide-mobile">${f.isDirectory ? '' : formatTime(f.mtime)}</td>
+                        <td style="text-align:right">
+                            ${!f.isDirectory ? `<a href="${url}" class="dl-icon" title="Download"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg></a>` : ''}
+                        </td>
+                    </tr>`;
             });
+            } catch (e) {
+                console.error(e);
+                if (currentPath !== '') load('');
+            }
         }
-
-        loadFiles();
+        load();
     </script>
 </body>
 </html>
