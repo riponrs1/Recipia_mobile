@@ -557,29 +557,31 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: _isLoading
           ? null
-          : Container(
-              height: 56,
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              child: ElevatedButton(
-                onPressed: _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFE74C3C),
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.save_outlined),
-                    const SizedBox(width: 8),
-                    Text(
-                      widget.recipe == null ? "SAVE RECIPE" : "UPDATE RECIPE",
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                    ),
-                  ],
+          : SafeArea(
+              child: Container(
+                height: 56,
+                margin: const EdgeInsets.symmetric(horizontal: 20),
+                child: ElevatedButton(
+                  onPressed: _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFE74C3C),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16)),
+                    elevation: 4,
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.save_outlined),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.recipe == null ? "SAVE RECIPE" : "UPDATE RECIPE",
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
