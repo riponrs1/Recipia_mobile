@@ -560,7 +560,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           : SafeArea(
               child: Container(
                 height: 56,
-                margin: const EdgeInsets.symmetric(horizontal: 20),
+                margin: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
                 child: ElevatedButton(
                   onPressed: _submit,
                   style: ElevatedButton.styleFrom(
