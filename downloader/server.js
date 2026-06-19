@@ -23,11 +23,22 @@ app.get('/api/files', (req, res) => {
             return res.status(500).json({ error: 'Unable to scan directory' });
         }
 
-        const fileList = files.map(file => ({
-            name: file.name,
-            isDirectory: file.isDirectory(),
-            path: path.join(dirPath, file.name)
-        }));
+        const fileList = files.map(file => {
+            const filePath = path.join(fullPath, file.name);
+            let size = 0, mtime = null;
+            try {
+                const stat = fs.statSync(filePath);
+                size = stat.size;
+                mtime = stat.mtime;
+            } catch(e) {}
+            return {
+                name: file.name,
+                isDirectory: file.isDirectory(),
+                path: path.join(dirPath, file.name),
+                size,
+                mtime
+            };
+        });
 
         res.json({ path: dirPath, files: fileList });
     });

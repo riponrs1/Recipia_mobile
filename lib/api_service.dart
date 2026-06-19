@@ -926,7 +926,8 @@ class ApiService {
       // 2. Fetch full details for each recipe to ensure ingredients/process are cached
       for (var r in recipesList) {
         if (r['id'] != null) {
-          await getRecipe(r['id']);
+          final fullRecipe = await getRecipe(r['id']);
+          await DatabaseHelper().saveLocalRecipe(fullRecipe);
         }
       }
       
