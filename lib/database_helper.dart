@@ -482,11 +482,19 @@ class DatabaseHelper {
     return res.map((r) => r['brand_name'] as String).toList();
   }
 
-  Future<Map<String, dynamic>> getProfileStats() async {
+  Future<Map<String, dynamic>> getProfileStats({int? currentUserId}) async {
     final db = await database;
-    final recipeCount = Sqflite.firstIntValue(
-            await db.rawQuery('SELECT COUNT(*) FROM recipes WHERE deleted_at IS NULL')) ??
-        0;
+    
+    String recipeQuery = 'SELECT COUNT(*) as total FROM recipes WHERE deleted_at IS NULL';
+    List<dynamic> args = [];
+    if (currentUserId != null && currentUserId != 0) {
+      recipeQuery += ' AND user_id = ?';
+      args.add(currentUserId);
+    }
+    
+    final res = await db.rawQuery(recipeQuery, args);
+    final recipeCount = Sqflite.firstIntValue(res) ?? 0;
+
     final pantryValueRes =
         await db.rawQuery('SELECT SUM(price) as total FROM ingredients');
     final pantryValue = (pantryValueRes.first['total'] ?? 0.0) as double;
@@ -537,6 +545,10 @@ class DatabaseHelper {
 
     // 6. Migrate legacy ingredients table if exists
     await _migrateLegacyIngredients();
+
+    // 7. Clear old cached profile to prevent name mismatch
+    final db = await database;
+    await db.delete('app_cache', where: 'key = ?', whereArgs: ['user_profile']);
   }
 
   Future<void> _migrateImagePaths() async {
@@ -597,5 +609,15 @@ class DatabaseHelper {
     } catch (e) {
       debugPrint('Legacy ingredient migration error: $e');
     }
+  }
+
+  Future<void> clearAllData() async {
+    final db = await database;
+    final batch = db.batch();
+    batch.delete('recipes');
+    batch.delete('ingredients');
+    batch.delete('app_cache');
+    batch.delete('pending_sync');
+    await batch.commit(noResult: true);
   }
 }

@@ -889,6 +889,7 @@ class ApiService {
       }
     }
     await prefs.remove('token');
+    await DatabaseHelper().clearAllData();
   }
 
   Future<String?> _saveFilePermanently(String? path) async {

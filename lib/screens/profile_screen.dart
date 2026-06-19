@@ -43,7 +43,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     setState(() => _isLoading = true);
     try {
       final user = await _apiService.getUser();
-      final stats = await DatabaseHelper().getProfileStats();
+      final stats = await DatabaseHelper().getProfileStats(currentUserId: user['id'] as int?);
       if (mounted) {
         setState(() {
           _userData = user;
