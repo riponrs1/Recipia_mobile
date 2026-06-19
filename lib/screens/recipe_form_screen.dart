@@ -546,43 +546,40 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 160),
+                          const SizedBox(height: 32),
+                          if (!_isLoading)
+                            SizedBox(
+                              width: double.infinity,
+                              height: 56,
+                              child: ElevatedButton(
+                                onPressed: _submit,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFE74C3C),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16)),
+                                  elevation: 4,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.save_outlined),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      widget.recipe == null ? "SAVE RECIPE" : "UPDATE RECIPE",
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold, letterSpacing: 1.2),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 40),
                         ],
                       ),
                     ),
                   ),
                 ],
-              ),
-            ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: _isLoading
-          ? null
-          : SafeArea(
-              child: Container(
-                height: 56,
-                margin: const EdgeInsets.only(left: 20, right: 20, bottom: 24),
-                child: ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE74C3C),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
-                    elevation: 4,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.save_outlined),
-                      const SizedBox(width: 8),
-                      Text(
-                        widget.recipe == null ? "SAVE RECIPE" : "UPDATE RECIPE",
-                        style: const TextStyle(
-                            fontWeight: FontWeight.bold, letterSpacing: 1.2),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ),
     );
