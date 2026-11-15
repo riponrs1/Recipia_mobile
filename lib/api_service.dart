@@ -446,7 +446,21 @@ class ApiService {
     await DatabaseHelper().restoreLocalRecipe(id);
   }
 
+  static bool _syncing = false;
+
+  /// Sends queued offline changes. Only one run at a time, so the same
+  /// change is never sent twice.
   Future<void> syncPendingActions() async {
+    if (_syncing) return;
+    _syncing = true;
+    try {
+      await _syncPendingActions();
+    } finally {
+      _syncing = false;
+    }
+  }
+
+  Future<void> _syncPendingActions() async {
     final pending = await DatabaseHelper().getPendingSyncs();
     if (pending.isEmpty) return;
 

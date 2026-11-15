@@ -78,7 +78,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Edit Photo',
-            toolbarColor: const Color(0xFFE74C3C),
+            toolbarColor: const Color(0xFF1B4D3E),
             toolbarWidgetColor: Colors.white,
             initAspectRatio: CropAspectRatioPreset.square,
             lockAspectRatio: true,
@@ -222,162 +222,186 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final String? currentAvatarUrl = widget.userData['profile']?['avatar'];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDFBF7),
-      appBar: AppBar(
-        title: const Text('EDIT PROFILE',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.white)),
-        backgroundColor: const Color(0xFF1B4D3E),
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: SingleChildScrollView(
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.all(24.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              Center(
-                child: Stack(
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 16, 6),
+              child: Row(
+                children: [
+                  IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: _fg),
+                      onPressed: () => Navigator.pop(context)),
+                  const Text('Edit profile',
+                      style: TextStyle(fontFamily: 'SpaceGrotesk',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: _fg)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: Form(
+                key: _formKey,
+                child: ListView(
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(20, 10, 20, 40),
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFE1B12C), width: 2),
-                      ),
-                      child: CircleAvatar(
-                        radius: 60,
-                        backgroundColor: const Color(0xFF1B4D3E).withOpacity(0.1),
-                        backgroundImage: _avatarImage != null
-                            ? FileImage(_avatarImage!)
-                            : (currentAvatarUrl != null
-                                ? CachedNetworkImageProvider(
-                                    ApiService.getImageUrl(currentAvatarUrl))
-                                : null) as ImageProvider?,
-                        child: (_avatarImage == null && currentAvatarUrl == null)
-                            ? const Icon(Icons.person_rounded, size: 60, color: Color(0xFF1B4D3E))
-                            : null,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: _pickImage,
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF1B4D3E),
-                            shape: BoxShape.circle,
+                    Center(
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              color: _accent,
+                              borderRadius: BorderRadius.circular(30),
+                              image: (_avatarImage != null ||
+                                      currentAvatarUrl != null)
+                                  ? DecorationImage(
+                                      image: _avatarImage != null
+                                          ? FileImage(_avatarImage!)
+                                          : CachedNetworkImageProvider(
+                                                  ApiService.getImageUrl(
+                                                      currentAvatarUrl!))
+                                              as ImageProvider,
+                                      fit: BoxFit.cover)
+                                  : null,
+                            ),
+                            alignment: Alignment.center,
+                            child: (_avatarImage == null &&
+                                    currentAvatarUrl == null)
+                                ? const Icon(Icons.person_rounded,
+                                    size: 48, color: Colors.white)
+                                : null,
                           ),
-                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
-                        ),
+                          Positioned(
+                            bottom: -2,
+                            right: -2,
+                            child: GestureDetector(
+                              onTap: _pickImage,
+                              child: Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                    color: _accent,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: _bg, width: 2)),
+                                child: const Icon(Icons.camera_alt_rounded,
+                                    color: Colors.white, size: 16),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    Center(
+                      child: TextButton(
+                        onPressed: _pickImage,
+                        child: const Text('Change photo',
+                            style: TextStyle(
+                                color: _accent,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14)),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _input(_usernameController, 'Username',
+                        validator: (v) => (v != null && v.length > 255)
+                            ? 'Too long'
+                            : null),
+                    const SizedBox(height: 16),
+                    _input(_bioController, 'Bio',
+                        maxLines: 4,
+                        validator: (v) => (v != null && v.length > 500)
+                            ? 'Too long'
+                            : null),
+                    const SizedBox(height: 16),
+                    _input(_locationController, 'Location'),
+                    const SizedBox(height: 16),
+                    _input(_websiteController, 'Website',
+                        keyboardType: TextInputType.url),
                   ],
                 ),
               ),
-              const SizedBox(height: 32),
-              _buildModernInput(
-                controller: _usernameController,
-                label: 'ARTISAN NAME',
-                icon: Icons.person_outline_rounded,
-                validator: (value) => (value != null && value.length > 255) ? 'Too long' : null,
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          child: SizedBox(
+            width: double.infinity,
+            height: 54,
+            child: ElevatedButton(
+              onPressed: _isLoading ? null : _saveProfile,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accent,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
               ),
-              const SizedBox(height: 20),
-              _buildModernInput(
-                controller: _bioController,
-                label: 'CULINARY PHILOSOPHY',
-                icon: Icons.auto_awesome_rounded,
-                maxLines: 4,
-                validator: (value) => (value != null && value.length > 500) ? 'Too long' : null,
-              ),
-              const SizedBox(height: 20),
-              _buildModernInput(
-                controller: _locationController,
-                label: 'HEADQUARTERS',
-                icon: Icons.location_on_outlined,
-              ),
-              const SizedBox(height: 20),
-              _buildModernInput(
-                controller: _websiteController,
-                label: 'FOLIO / WEBSITE',
-                icon: Icons.language_rounded,
-                keyboardType: TextInputType.url,
-              ),
-              const SizedBox(height: 48),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _saveProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1B4D3E),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text('SAVE IDENTITY', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                ),
-              ),
-              const SizedBox(height: 100),
-            ],
+              child: _isLoading
+                  ? const SizedBox(
+                      height: 22,
+                      width: 22,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 3, color: Colors.white))
+                  : const Text('Save changes',
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                          color: Colors.white)),
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildModernInput({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-    TextInputType? keyboardType,
-  }) {
+  Widget _input(TextEditingController controller, String label,
+      {int maxLines = 1,
+      String? Function(String?)? validator,
+      TextInputType? keyboardType}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(label,
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Color(0xFFE1B12C))),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.02),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: TextFormField(
-            controller: controller,
-            maxLines: maxLines,
-            keyboardType: keyboardType,
-            style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1B4D3E), fontSize: 14),
-            decoration: InputDecoration(
-              prefixIcon: Icon(icon, color: const Color(0xFF1B4D3E).withOpacity(0.3), size: 20),
-              border: InputBorder.none,
-              contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            ),
-            validator: validator,
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13, fontWeight: FontWeight.w600, color: _muted)),
+        const SizedBox(height: 7),
+        TextFormField(
+          controller: controller,
+          maxLines: maxLines,
+          keyboardType: keyboardType,
+          validator: validator,
+          style: const TextStyle(fontSize: 15, color: _fg),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: _surface,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: _line)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: _line)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(color: _accent, width: 1.5)),
           ),
         ),
       ],
     );
   }
 }
+
+const _bg = Color(0xFFFFFBF0);
+const _surface = Color(0xFFFFFFFF);
+const _fg = Color(0xFF2D3436);
+const _muted = Color(0xFF636E72);
+const _line = Color(0xFFECE3D1);
+const _accent = Color(0xFF1B4D3E);

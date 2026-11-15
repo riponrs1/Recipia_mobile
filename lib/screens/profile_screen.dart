@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
+import '../app_settings.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:sqflite/sqflite.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
@@ -15,6 +15,16 @@ import 'login_screen.dart';
 import 'backup_sync_screen.dart';
 import 'recipe_sections_screen.dart';
 import 'trash_screen.dart';
+import 'settings_screen.dart';
+
+const _bg = Color(0xFFFFFBF0);
+const _surface = Color(0xFFFFFFFF);
+const _surface2 = Color(0xFFFBF6E8);
+const _fg = Color(0xFF2D3436);
+const _muted = Color(0xFF636E72);
+const _line = Color(0xFFECE3D1);
+const _accent = Color(0xFF1B4D3E);
+const _accentSoft = Color(0xFFE6EFE9);
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -60,196 +70,217 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final syncProvider = Provider.of<SyncProvider>(context);
-    final name = _userData?['name'] ?? syncProvider.userName ?? "CHEF";
-    final email = _userData?['email'] ?? syncProvider.userEmail ?? "MY KITCHEN";
+    final name = _userData?['name'] ?? syncProvider.userName ?? "Chef";
+    final email =
+        _userData?['email'] ?? syncProvider.userEmail ?? "my kitchen";
     final avatarUrl = _userData?['profile']?['avatar'];
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFDFBF7),
-      body: _isLoading 
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1B4D3E)))
-          : CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                _buildSliverHeader(name, email, avatarUrl, syncProvider),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      children: [
-                        _buildStatsRow(),
-                        const SizedBox(height: 40),
-                        _buildMenuSection('MANAGEMENT', [
-                          _buildMenuItem(Icons.sync_lock_rounded, const Color(0xFF1B4D3E), 'BACKUP & SYNC', 'Secure your recipes in the cloud', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const BackupSyncScreen()))),
-                          _buildMenuItem(Icons.auto_awesome_mosaic_rounded, const Color(0xFFE1B12C), 'CUISINES & SECTIONS', 'Organize your culinary categories', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RecipeSectionsScreen()))),
-                          _buildMenuItem(Icons.auto_delete_rounded, const Color(0xFFE1B12C), 'RECYCLE BIN', 'Restore deleted recipes', () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrashScreen()))),
-                        ]),
-                        const SizedBox(height: 24),
-                        _buildMenuSection('SYSTEM', [
-                          _buildMenuItem(Icons.ios_share_rounded, const Color(0xFFB2BEC3), 'EXPORT DATA', 'Download a backup file', () => _exportDatabase(context)),
-                          _buildMenuItem(Icons.logout_rounded, const Color(0xFF1B4D3E), 'LOGOUT', 'Sign out of your account', () => _handleLogout(context, syncProvider)),
-                        ]),
-                        const SizedBox(height: 160),
-                        Text('RECIPIA • v2.0 • GOURMET EDITION', style: TextStyle(color: const Color(0xFF1B4D3E).withOpacity(0.1), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                        const SizedBox(height: 48),
-                      ],
-                    ),
+      backgroundColor: _bg,
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: _accent))
+          : SafeArea(
+              bottom: false,
+              child: ListView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 40),
+                children: [
+                  const Text('Profile',
+                      style: TextStyle(fontFamily: 'SpaceGrotesk',
+                          fontSize: 26,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          color: _fg)),
+                  const SizedBox(height: 18),
+                  _header(name, email, avatarUrl, syncProvider),
+                  const SizedBox(height: 22),
+                  _statsRow(),
+                  const SizedBox(height: 20),
+                  _menu([
+                    _menuItem(Icons.edit_outlined, 'Edit profile', () async {
+                      if (_userData != null) {
+                        await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) =>
+                                    EditProfileScreen(userData: _userData!)));
+                        _loadData();
+                      }
+                    }),
+                    _menuItem(Icons.dashboard_customize_outlined,
+                        'Manage sections', () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const RecipeSectionsScreen()))),
+                    _menuItem(Icons.cloud_sync_outlined, 'Backup & sync',
+                        () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const BackupSyncScreen()))),
+                    _menuItem(Icons.delete_outline_rounded, 'Trash',
+                        () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const TrashScreen()))),
+                    _menuItem(Icons.settings_outlined, 'Settings',
+                        () async {
+                      await Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                      if (mounted) setState(() {});
+                    }),
+                    _menuItem(Icons.ios_share_rounded, 'Export data',
+                        () => _exportDatabase(context)),
+                    _menuItem(Icons.logout_rounded, 'Log out',
+                        () => _handleLogout(context, syncProvider),
+                        destructive: true),
+                  ]),
+                  const SizedBox(height: 24),
+                  Center(
+                    child: Text('Recipia · v2.0',
+                        style: TextStyle(
+                            color: _muted.withOpacity(0.6),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500)),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
     );
   }
 
-  Widget _buildSliverHeader(String name, String email, String? avatarUrl, SyncProvider syncProvider) {
-    return SliverAppBar(
-      expandedHeight: 340.0,
-      pinned: true,
-      elevation: 0,
-      stretch: true,
-      backgroundColor: const Color(0xFF1B4D3E),
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-        onPressed: () => Navigator.pop(context),
-      ),
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(color: const Color(0xFF1B4D3E)),
-            Positioned(
-              right: -40,
-              top: -40,
-              child: Icon(Icons.blur_on_rounded, size: 400, color: Colors.white.withOpacity(0.03)),
-            ),
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 60),
-                Stack(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(color: Color(0xFFE1B12C), shape: BoxShape.circle),
-                      child: CircleAvatar(
-                        radius: 56,
-                        backgroundColor: Colors.white,
-                        backgroundImage: avatarUrl != null
-                            ? CachedNetworkImageProvider(ApiService.getImageUrl(avatarUrl))
-                            : (syncProvider.userPhoto != null ? NetworkImage(syncProvider.userPhoto!) : null) as ImageProvider?,
-                        child: (avatarUrl == null && syncProvider.userPhoto == null)
-                            ? Text(name[0].toUpperCase(), style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E)))
-                            : null,
-                      ),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: () async {
-                          if (_userData != null) {
-                            await Navigator.push(context, MaterialPageRoute(builder: (_) => EditProfileScreen(userData: _userData!)));
-                            _loadData();
-                          }
-                        },
-                        child: const CircleAvatar(
-                          radius: 18,
-                          backgroundColor: Color(0xFF1B4D3E),
-                          child: Icon(Icons.camera_enhance_rounded, color: Colors.white, size: 16),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                Text(name.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), borderRadius: BorderRadius.circular(20)),
-                  child: Text(email.toLowerCase(), style: const TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatsRow() {
-    return Row(
+  Widget _header(String name, String email, String? avatarUrl,
+      SyncProvider syncProvider) {
+    final photoUrl = avatarUrl != null
+        ? ApiService.getImageUrl(avatarUrl)
+        : syncProvider.userPhoto;
+    // The initial is always drawn; the photo sits on top and simply
+    // disappears if it cannot load (offline, deleted file).
+    return Column(
       children: [
-        _buildStatCard('TOTAL RECIPES', _stats['recipeCount'].toString(), Icons.history_edu_rounded),
-        const SizedBox(width: 12),
-        _buildStatCard('CURRENCY', '\$${_stats['pantryValue'].toStringAsFixed(0)}', Icons.payments_outlined),
-        const SizedBox(width: 12),
-        _buildStatCard('ARCHIVES', _stats['sectionCount'].toString(), Icons.shelves),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(30),
+          child: Container(
+            width: 92,
+            height: 92,
+            color: _accent,
+            alignment: Alignment.center,
+            child: Stack(fit: StackFit.expand, children: [
+              Center(
+                child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(fontFamily: 'SpaceGrotesk',
+                        fontSize: 40,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white)),
+              ),
+              if (photoUrl != null)
+                CachedNetworkImage(
+                  imageUrl: photoUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  placeholder: (_, __) => const SizedBox.shrink(),
+                ),
+            ]),
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(name,
+            style: const TextStyle(fontFamily: 'SpaceGrotesk',
+                fontSize: 22, fontWeight: FontWeight.w800, color: _fg)),
+        const SizedBox(height: 2),
+        Text(email, style: const TextStyle(fontSize: 14, color: _muted)),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+              color: _accentSoft, borderRadius: BorderRadius.circular(999)),
+          child: const Text('Head Chef',
+              style: TextStyle(
+                  fontSize: 12, fontWeight: FontWeight.w600, color: _accent)),
+        ),
       ],
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon) {
+  Widget _statsRow() {
+    return Row(
+      children: [
+        _statCard(_stats['recipeCount'].toString(), 'recipes'),
+        const SizedBox(width: 10),
+        _statCard(_stats['sectionCount'].toString(), 'sections'),
+        const SizedBox(width: 10),
+        _statCard('${_stats['ingredientCount'] ?? 0}', 'ingredients'),
+      ],
+    );
+  }
+
+  Widget _statCard(String value, String label) {
     return Expanded(
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 8),
+        padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 15, offset: const Offset(0, 5)),
-          ],
+          color: _surface2,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _line),
         ),
         child: Column(
           children: [
-            Icon(icon, color: const Color(0xFFE1B12C), size: 24),
-            const SizedBox(height: 12),
-            Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E))),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 8, fontWeight: FontWeight.w900, color: Color(0xFFB2BEC3), letterSpacing: 1)),
+            Text(value,
+                style: const TextStyle(fontFamily: 'SpaceGrotesk',
+                    fontSize: 20, fontWeight: FontWeight.w700, color: _fg)),
+            const SizedBox(height: 2),
+            Text(label, style: const TextStyle(fontSize: 12, color: _muted)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildMenuSection(String title, List<Widget> items) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 16, bottom: 12),
-          child: Text(title, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: Color(0xFFE1B12C), letterSpacing: 2)),
-        ),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            boxShadow: [
-              BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 15, offset: const Offset(0, 5)),
-            ],
-          ),
-          child: Column(children: items),
-        ),
-      ],
+  Widget _menu(List<Widget> items) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _line),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(children: items),
     );
   }
 
-  Widget _buildMenuItem(IconData icon, Color color, String title, String subtitle, VoidCallback onTap) {
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      leading: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: color.withOpacity(0.05), borderRadius: BorderRadius.circular(16)),
-        child: Icon(icon, color: color, size: 20),
-      ),
-      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: Color(0xFF1B4D3E), letterSpacing: 0.5)),
-      subtitle: Padding(
-        padding: const EdgeInsets.only(top: 2),
-        child: Text(subtitle, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Color(0xFFB2BEC3))),
-      ),
-      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Color(0xFFE2E8F0)),
+  Widget _menuItem(IconData icon, String title, VoidCallback onTap,
+      {bool destructive = false, String? trailing}) {
+    final c = destructive ? const Color(0xFFC0392B) : _fg;
+    return InkWell(
       onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: _line))),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                  color: _surface2, borderRadius: BorderRadius.circular(11)),
+              child: Icon(icon,
+                  size: 19, color: destructive ? c : _accent),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(title,
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600, color: c)),
+            ),
+            if (trailing != null)
+              Text(trailing,
+                  style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: _muted)),
+            if (!destructive)
+              const Padding(
+                padding: EdgeInsets.only(left: 6),
+                child: Icon(Icons.chevron_right_rounded,
+                    size: 20, color: _muted),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

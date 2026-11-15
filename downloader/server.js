@@ -4,59 +4,32 @@ const fs = require('fs');
 
 const app = express();
 const PORT = 8000;
-const ROOT_DIR = path.resolve(__dirname, '..'); // Parent directory is the root
+const APK_NAME = 'recipia-debug.apk';
+const APK_PATH = path.join(__dirname, 'public', APK_NAME);
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 
-// API to list files
+// Expose only the installable APK, not the rest of the mobile project.
 app.get('/api/files', (req, res) => {
-    const dirPath = req.query.path || '';
-    const fullPath = path.join(ROOT_DIR, dirPath);
-
-    // Security check to prevent escaping root
-    if (!fullPath.startsWith(ROOT_DIR)) {
-        return res.status(403).json({ error: 'Access denied' });
-    }
-
-    fs.readdir(fullPath, { withFileTypes: true }, (err, files) => {
-        if (err) {
-            return res.status(500).json({ error: 'Unable to scan directory' });
-        }
-
-        const fileList = files.map(file => {
-            const filePath = path.join(fullPath, file.name);
-            let size = 0, mtime = null;
-            try {
-                const stat = fs.statSync(filePath);
-                size = stat.size;
-                mtime = stat.mtime;
-            } catch(e) {}
-            return {
-                name: file.name,
-                isDirectory: file.isDirectory(),
-                path: path.join(dirPath, file.name),
-                size,
-                mtime
-            };
+    fs.stat(APK_PATH, (err, stat) => {
+        if (err) return res.status(404).json({ error: 'APK not found' });
+        res.json({
+            path: '',
+            projectName: 'Recipia',
+            files: [{
+                name: APK_NAME,
+                isDirectory: false,
+                path: APK_NAME,
+                size: stat.size,
+                mtime: stat.mtime
+            }]
         });
-
-        res.json({ path: dirPath, files: fileList });
     });
 });
 
-// Serve files for download
 app.get('/download', (req, res) => {
-    const filePath = req.query.path;
-    if (!filePath) return res.status(400).send('Missing path');
-
-    const fullPath = path.join(ROOT_DIR, filePath);
-
-    // Security check
-    if (!fullPath.startsWith(ROOT_DIR)) {
-        return res.status(403).send('Access denied');
-    }
-
-    res.download(fullPath);
+    if (req.query.path !== APK_NAME) return res.sendStatus(404);
+    res.download(APK_PATH, APK_NAME);
 });
 
 app.listen(PORT, '0.0.0.0', () => {

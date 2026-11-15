@@ -79,94 +79,148 @@ class _TrashScreenState extends State<TrashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDFBF7),
-      appBar: AppBar(
-        title: const Text('RECYCLE BIN',
-            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.white)),
-        backgroundColor: const Color(0xFF1B4D3E),
-        foregroundColor: Colors.white,
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFF1B4D3E)))
-          : _trashRecipes.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.auto_delete_rounded, size: 80, color: const Color(0xFF1B4D3E).withOpacity(0.1)),
-                      const SizedBox(height: 24),
-                      const Text('NOTHING IN STORAGE',
-                          style: TextStyle(color: Color(0xFFE1B12C), fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                      const SizedBox(height: 12),
-                      Text('Your collection is clean.',
-                          style: TextStyle(color: Colors.brown.shade200, fontSize: 14)),
-                    ],
-                  ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 160),
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: _trashRecipes.length,
-                  itemBuilder: (ctx, index) {
-                    final item = _trashRecipes[index];
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 15,
-                            offset: const Offset(0, 5),
+      backgroundColor: _bg,
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 6, 16, 6),
+              child: Row(
+                children: [
+                  IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: _fg),
+                      onPressed: () => Navigator.pop(context)),
+                  const Text('Trash',
+                      style: TextStyle(fontFamily: 'SpaceGrotesk',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: _fg)),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: _accent))
+                  : _trashRecipes.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.delete_outline_rounded,
+                                  size: 64, color: _accentSoft),
+                              SizedBox(height: 14),
+                              Text('Trash is empty',
+                                  style: TextStyle(
+                                      color: _muted,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600)),
+                            ],
                           ),
-                        ],
-                      ),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(16),
-                        leading: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: item['item_photo'] != null
-                              ? Image.file(File(item['item_photo']),
-                                  width: 56, height: 56, fit: BoxFit.cover)
-                              : Container(
-                                  width: 56,
-                                  height: 56,
-                                  color: const Color(0xFFFDFBF7),
-                                  child: const Icon(Icons.image_not_supported_rounded, color: Color(0xFFE2E8F0))),
-                        ),
-                        title: Text(item['name'].toString().toUpperCase(),
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF1B4D3E), fontSize: 13, letterSpacing: 0.5)),
-                        subtitle: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                              'ARCHIVED: ${item['deleted_at'].toString().split('T')[0]}',
-                              style: const TextStyle(color: Color(0xFFE1B12C), fontSize: 10, fontWeight: FontWeight.w800)),
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
+                        )
+                      : ListView(
+                          physics: const BouncingScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
                           children: [
-                            IconButton(
-                              icon: const Icon(Icons.history_rounded,
-                                  color: Color(0xFFB2BEC3), size: 22),
-                              onPressed: () => _restore(item['id']),
-                              tooltip: 'Restore',
+                            const Padding(
+                              padding: EdgeInsets.fromLTRB(2, 0, 2, 12),
+                              child: Text(
+                                  'Deleted recipes stay here for 30 days, then are removed for good.',
+                                  style:
+                                      TextStyle(color: _muted, fontSize: 13)),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_forever_rounded,
-                                  color: Color(0xFFE1B12C), size: 22),
-                              onPressed: () => _deletePermanently(item['id']),
-                              tooltip: 'Delete Permanently',
-                            ),
+                            ..._trashRecipes.map(_trashCard),
                           ],
                         ),
-                      ),
-                    );
-                  },
-                ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _trashCard(Map<String, dynamic> item) {
+    final name = item['name'].toString();
+    final date = item['deleted_at'] != null
+        ? item['deleted_at'].toString().split('T')[0]
+        : '';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: _surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: _line)),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+                color: _accentSoft, borderRadius: BorderRadius.circular(13)),
+            alignment: Alignment.center,
+            child: item['item_photo'] != null
+                ? ClipRRect(
+                    borderRadius: BorderRadius.circular(13),
+                    child: Image.file(File(item['item_photo']),
+                        width: 44, height: 44, fit: BoxFit.cover),
+                  )
+                : Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                        color: _accent, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: _fg)),
+                if (date.isNotEmpty)
+                  Text('Deleted $date',
+                      style: const TextStyle(fontSize: 12, color: _muted)),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _restore(item['id']),
+            child: Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                  color: _accentSoft,
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: _accent)),
+              child: const Text('Restore',
+                  style: TextStyle(
+                      color: _accent,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13)),
+            ),
+          ),
+          GestureDetector(
+            onTap: () => _deletePermanently(item['id']),
+            child: const Padding(
+              padding: EdgeInsets.only(left: 8),
+              child: Icon(Icons.delete_forever_rounded,
+                  color: Color(0xFFC0392B), size: 20),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
+
+const _bg = Color(0xFFFFFBF0);
+const _surface = Color(0xFFFFFFFF);
+const _fg = Color(0xFF2D3436);
+const _muted = Color(0xFF636E72);
+const _line = Color(0xFFECE3D1);
+const _accent = Color(0xFF1B4D3E);
+const _accentSoft = Color(0xFFE6EFE9);

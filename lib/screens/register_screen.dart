@@ -61,9 +61,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
     Widget build(BuildContext context) {
-    const Color antiqueCream = Color(0xFFFDFBF7);
+    const Color antiqueCream = Color(0xFFFFFBF0);
     const Color mahogany = Color(0xFF1B4D3E);
-    const Color softPeach = Color(0xFFE1B12C);
+    const Color softPeach = Color(0xFF1B4D3E);
 
     return Scaffold(
       backgroundColor: antiqueCream,
@@ -102,23 +102,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 24),
                   const Text(
-                    'CREATE ACCOUNT',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
+                    'Create account',
+                    style: TextStyle(fontFamily: 'SpaceGrotesk',
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
                       color: mahogany,
                       letterSpacing: -1,
                     ),
                   ),
-                  Text(
-                    'Start your curated culinary journey',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: mahogany.withOpacity(0.5),
-                      fontWeight: FontWeight.w600,
-                    ),
+                  const Text(
+                    'Start your recipe collection.',
+                    style: TextStyle(fontSize: 15, color: Color(0xFF636E72)),
                   ),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 32),
 
                   if (_errorMessage != null)
                     Container(
@@ -138,28 +134,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLabel('FULL NAME'),
+                      _buildLabel('Name'),
                       TextField(
                         controller: _nameController,
                         style: const TextStyle(fontWeight: FontWeight.w600),
-                        decoration: _inputDecoration(Icons.person_outline_rounded, 'e.g. Auguste Escoffier'),
+                        decoration: _inputDecoration(Icons.person_outline_rounded, 'Your name'),
                       ),
                       const SizedBox(height: 20),
-                      _buildLabel('EMAIL ADDRESS'),
+                      _buildLabel('Email'),
                       TextField(
                         controller: _emailController,
                         style: const TextStyle(fontWeight: FontWeight.w600),
-                        decoration: _inputDecoration(Icons.email_outlined, 'e.g. chef@recipia.com'),
+                        decoration: _inputDecoration(Icons.email_outlined, 'you@email.com'),
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 20),
-                      _buildLabel('PASSWORD'),
+                      _buildLabel('Password'),
                       TextField(
                         controller: _passwordController,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                         decoration: _inputDecoration(
                           Icons.lock_outline_rounded,
-                          '••••••••',
+                          'Choose a password',
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscurePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
@@ -172,13 +168,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         obscureText: _obscurePassword,
                       ),
                       const SizedBox(height: 20),
-                      _buildLabel('CONFIRM PASSWORD'),
+                      _buildLabel('Confirm password'),
                       TextField(
                         controller: _confirmPasswordController,
                         style: const TextStyle(fontWeight: FontWeight.w600),
                         decoration: _inputDecoration(
                           Icons.lock_reset_rounded,
-                          '••••••••',
+                          'Type it again',
                           suffixIcon: IconButton(
                             icon: Icon(
                               _obscureConfirmPassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
@@ -197,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   SizedBox(
                     width: double.infinity,
-                    height: 64,
+                    height: 54,
                     child: _isLoading
                         ? const Center(child: CircularProgressIndicator(color: mahogany))
                         : ElevatedButton(
@@ -206,10 +202,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               backgroundColor: mahogany,
                               foregroundColor: Colors.white,
                               elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
                             child: const Text(
-                              'Create Account',
+                              'Sign up',
                               style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.5),
                             ),
                           ),
@@ -227,7 +223,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: const Text(
-                          'Sign In',
+                          'Sign in',
                           style: TextStyle(color: mahogany, fontWeight: FontWeight.w900, fontSize: 14),
                         ),
                       ),
@@ -244,36 +240,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      padding: const EdgeInsets.only(left: 2, bottom: 7),
       child: Text(
         text,
-        style: TextStyle(
-          color: const Color(0xFF1B4D3E).withOpacity(0.4),
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 2,
+        style: const TextStyle(
+          color: Color(0xFF636E72),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 
   InputDecoration _inputDecoration(IconData icon, String hint, {Widget? suffixIcon}) {
-    const Color mahogany = Color(0xFF1B4D3E);
+    const Color accent = Color(0xFF1B4D3E);
     return InputDecoration(
       hintText: hint,
-      prefixIcon: Icon(icon, color: mahogany.withOpacity(0.3), size: 20),
       suffixIcon: suffixIcon,
-      hintStyle: TextStyle(color: mahogany.withOpacity(0.2), fontWeight: FontWeight.w500),
+      hintStyle: const TextStyle(color: Color(0xFF636E72), fontWeight: FontWeight.w400),
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(color: mahogany.withOpacity(0.05)),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFECE3D1)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: mahogany, width: 2),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: accent, width: 1.5),
       ),
     );
   }

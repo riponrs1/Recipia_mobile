@@ -100,9 +100,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    const Color antiqueCream = Color(0xFFFDFBF7);
+    const Color antiqueCream = Color(0xFFFFFBF0);
     const Color mahogany = Color(0xFF1B4D3E);
-    const Color softPeach = Color(0xFFE1B12C);
+    const Color softPeach = Color(0xFF1B4D3E);
 
     return Scaffold(
       backgroundColor: antiqueCream,
@@ -141,24 +141,19 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                   const SizedBox(height: 32),
                   const Text(
-                    'RECIPIA',
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.w900,
+                    'Recipia',
+                    style: TextStyle(fontFamily: 'SpaceGrotesk',
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
                       color: mahogany,
                       letterSpacing: -1,
                     ),
                   ),
-                  Text(
-                    'Your Personal Recipe Book',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: mahogany.withOpacity(0.5),
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.5,
-                    ),
+                  const Text(
+                    'Your kitchen, organised.',
+                    style: TextStyle(fontSize: 15, color: Color(0xFF636E72)),
                   ),
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 40),
                   
                   // Login Form
                   if (_errorMessage != null)
@@ -186,15 +181,15 @@ class _LoginScreenState extends State<LoginScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildLabel('EMAIL ADDRESS'),
+                      _buildLabel('Email'),
                       TextField(
                         controller: _emailController,
                         style: const TextStyle(fontWeight: FontWeight.w600),
-                        decoration: _inputDecoration(Icons.email_outlined, 'e.g. chef@recipia.com'),
+                        decoration: _inputDecoration(Icons.email_outlined, 'you@email.com'),
                         keyboardType: TextInputType.emailAddress,
                       ),
                       const SizedBox(height: 24),
-                      _buildLabel('PASSWORD'),
+                      _buildLabel('Password'),
                       TextField(
                         controller: _passwordController,
                         style: const TextStyle(fontWeight: FontWeight.w600),
@@ -234,7 +229,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            "Remember Me",
+                            "Remember me",
                             style: TextStyle(color: mahogany.withOpacity(0.6), fontSize: 13, fontWeight: FontWeight.w600),
                           ),
                         ],
@@ -254,7 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Buttons
                   SizedBox(
                     width: double.infinity,
-                    height: 64,
+                    height: 54,
                     child: _isLoading
                         ? const Center(child: CircularProgressIndicator(color: mahogany))
                         : ElevatedButton(
@@ -263,11 +258,11 @@ class _LoginScreenState extends State<LoginScreen> {
                               backgroundColor: mahogany,
                               foregroundColor: Colors.white,
                               elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                             ),
                             child: const Text(
-                              'LOGIN',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                              'Sign in',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: 0.2),
                             ),
                           ),
                   ),
@@ -276,7 +271,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   // Google Sign In
                   SizedBox(
                     width: double.infinity,
-                    height: 64,
+                    height: 54,
                     child: OutlinedButton.icon(
                       onPressed: _handleGoogleSignIn,
                       icon: Image.network(
@@ -284,13 +279,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         height: 24,
                       ),
                       label: const Text(
-                        'LOGIN WITH GOOGLE',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                        'Continue with Google',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, letterSpacing: 0.2),
                       ),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: mahogany,
                         side: BorderSide(color: mahogany.withOpacity(0.15), width: 2),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
                     ),
                   ),
@@ -308,7 +303,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       GestureDetector(
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RegisterScreen())),
                         child: const Text(
-                          'Create Account',
+                          'Create account',
                           style: TextStyle(color: mahogany, fontWeight: FontWeight.w900, fontSize: 14),
                         ),
                       ),
@@ -325,36 +320,34 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      padding: const EdgeInsets.only(left: 2, bottom: 7),
       child: Text(
         text,
-        style: TextStyle(
-          color: const Color(0xFF1B4D3E).withOpacity(0.4),
-          fontSize: 10,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 2,
+        style: const TextStyle(
+          color: Color(0xFF636E72),
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
   }
 
   InputDecoration _inputDecoration(IconData icon, String hint, {Widget? suffixIcon}) {
-    const Color mahogany = Color(0xFF1B4D3E);
+    const Color accent = Color(0xFF1B4D3E);
     return InputDecoration(
       hintText: hint,
-      prefixIcon: Icon(icon, color: mahogany.withOpacity(0.3), size: 20),
       suffixIcon: suffixIcon,
-      hintStyle: TextStyle(color: mahogany.withOpacity(0.2), fontWeight: FontWeight.w500),
+      hintStyle: const TextStyle(color: Color(0xFF636E72), fontWeight: FontWeight.w400),
       filled: true,
       fillColor: Colors.white,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: BorderSide(color: mahogany.withOpacity(0.05)),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: Color(0xFFECE3D1)),
       ),
       focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
-        borderSide: const BorderSide(color: mahogany, width: 2),
+        borderRadius: BorderRadius.circular(14),
+        borderSide: const BorderSide(color: accent, width: 1.5),
       ),
     );
   }

@@ -41,3 +41,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local test APKs are distributed separately from source control.
+/downloader/public/*.apk

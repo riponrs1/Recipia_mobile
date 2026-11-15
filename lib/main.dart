@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'sync_provider.dart';
+import 'app_settings.dart';
 import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
 
@@ -15,9 +16,10 @@ class MyHttpOverrides extends HttpOverrides {
   }
 }
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = MyHttpOverrides();
+  await AppSettings.load();
   runApp(
     MultiProvider(
       providers: [
@@ -37,6 +39,7 @@ class MyApp extends StatelessWidget {
       title: 'Recipia',
       theme: ThemeData(
         useMaterial3: true,
+        fontFamily: 'Inter',
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF1B4D3E),
           primary: const Color(0xFF1B4D3E),
@@ -48,12 +51,12 @@ class MyApp extends StatelessWidget {
         ),
         scaffoldBackgroundColor: const Color(0xFFFFFBF0),
         textTheme: const TextTheme(
-          displayLarge: TextStyle(
+          displayLarge: TextStyle(fontFamily: 'SpaceGrotesk',
               fontSize: 32,
               fontWeight: FontWeight.bold,
               color: Color(0xFF2D3436),
               letterSpacing: -0.5),
-          titleLarge: TextStyle(
+          titleLarge: TextStyle(fontFamily: 'SpaceGrotesk',
               fontSize: 22,
               fontWeight: FontWeight.w800,
               color: Color(0xFF2D3436)),
@@ -63,7 +66,7 @@ class MyApp extends StatelessWidget {
           backgroundColor: Colors.transparent,
           elevation: 0,
           centerTitle: true,
-          titleTextStyle: TextStyle(
+          titleTextStyle: TextStyle(fontFamily: 'SpaceGrotesk',
               color: Color(0xFF2D3436),
               fontSize: 20,
               fontWeight: FontWeight.bold),

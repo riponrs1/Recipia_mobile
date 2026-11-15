@@ -34,7 +34,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 9,
+      version: 10,
       onCreate: (db, version) async {
         await _createTables(db);
       },
@@ -124,6 +124,9 @@ class DatabaseHelper {
             debugPrint('Error adding column cooked_count: $e');
           }
         }
+        if (oldVersion < 10) {
+          await _createPriceTables(db);
+        }
       },
     );
   }
@@ -185,7 +188,85 @@ class DatabaseHelper {
         created_at TEXT
       )
     ''');
+    await _createPriceTables(db);
     await _seedDefaultSections(db);
+  }
+
+  /// Price list support (v10): price history per ingredient, and prices
+  /// set for one recipe only. Both live only on this phone, so a refresh
+  /// from the server never wipes them.
+  Future<void> _createPriceTables(Database db) async {
+    await db.execute(
+        'CREATE TABLE IF NOT EXISTS ingredient_price_history(id INTEGER PRIMARY KEY AUTOINCREMENT, ingredient_key TEXT, old_price REAL, new_price REAL, unit TEXT, changed_at TEXT)');
+    await db.execute(
+        'CREATE TABLE IF NOT EXISTS recipe_price_overrides(recipe_id INTEGER, ingredient_key TEXT, price REAL, PRIMARY KEY (recipe_id, ingredient_key))');
+    try {
+      await db.execute(
+          'ALTER TABLE ingredients ADD COLUMN auto_added INTEGER DEFAULT 0');
+    } catch (_) {}
+  }
+
+  // ---- price history ----
+  Future<void> addPriceHistory(
+      String key, double? oldPrice, double newPrice, String unit) async {
+    final db = await database;
+    await db.insert('ingredient_price_history', {
+      'ingredient_key': key,
+      'old_price': oldPrice,
+      'new_price': newPrice,
+      'unit': unit,
+      'changed_at': DateTime.now().toIso8601String(),
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getPriceHistory(String key) async {
+    final db = await database;
+    return db.query('ingredient_price_history',
+        where: 'ingredient_key = ?',
+        whereArgs: [key],
+        orderBy: 'changed_at DESC');
+  }
+
+  /// Keeps history and per-recipe prices when an ingredient is renamed/merged.
+  Future<void> renamePriceKey(String oldKey, String newKey) async {
+    final db = await database;
+    await db.update('ingredient_price_history', {'ingredient_key': newKey},
+        where: 'ingredient_key = ?', whereArgs: [oldKey]);
+    await db.rawUpdate(
+        'UPDATE OR REPLACE recipe_price_overrides SET ingredient_key = ? WHERE ingredient_key = ?',
+        [newKey, oldKey]);
+  }
+
+  // ---- price for one recipe only ----
+  Future<Map<int, Map<String, double>>> getAllOverrides() async {
+    final db = await database;
+    final rows = await db.query('recipe_price_overrides');
+    final out = <int, Map<String, double>>{};
+    for (final r in rows) {
+      out.putIfAbsent(r['recipe_id'] as int, () => {})[
+          r['ingredient_key'] as String] = (r['price'] as num).toDouble();
+    }
+    return out;
+  }
+
+  Future<void> setOverride(int recipeId, String key, double? price) async {
+    final db = await database;
+    if (price == null) {
+      await db.delete('recipe_price_overrides',
+          where: 'recipe_id = ? AND ingredient_key = ?',
+          whereArgs: [recipeId, key]);
+    } else {
+      await db.insert('recipe_price_overrides',
+          {'recipe_id': recipeId, 'ingredient_key': key, 'price': price},
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+  }
+
+  /// Every recipe (including Trash) with its ingredient lines, for the price list.
+  Future<List<Map<String, dynamic>>> getRecipesForPriceBook() async {
+    final db = await database;
+    return db.query('recipes',
+        columns: ['id', 'name', 'ingredients', 'created_at', 'deleted_at']);
   }
 
   Future<void> _seedDefaultSections(Database db) async {
@@ -227,15 +308,19 @@ class DatabaseHelper {
     
     for (var recipe in recipes) {
       // Check if recipe already exists to preserve details if missing in list view
-      final existing = await db.query('recipes', columns: ['ingredients', 'process'], where: 'id = ?', whereArgs: [recipe['id']]);
-      
+      final existing = await db.query('recipes', columns: ['ingredients', 'process', 'deleted_at'], where: 'id = ?', whereArgs: [recipe['id']]);
+
       String ingredients = (recipe['ingredients'] is String)
           ? recipe['ingredients']
           : jsonEncode(recipe['ingredients'] ?? []);
-      
+
       String process = recipe['process'] ?? '';
+      // The server does not know about the phone's Trash yet, so a server
+      // refresh must not bring a recipe the user moved to Trash back.
+      String? deletedAt = recipe['deleted_at'];
 
       if (existing.isNotEmpty) {
+        deletedAt ??= existing.first['deleted_at'] as String?;
         if ((ingredients == '[]' || ingredients == '') && (existing.first['ingredients'] as String? ?? '').isNotEmpty) {
           ingredients = existing.first['ingredients'] as String;
         }
@@ -257,7 +342,7 @@ class DatabaseHelper {
           'visibility': recipe['visibility'] ?? 'private',
           'item_photo': recipe['item_photo'],
           'created_at': recipe['created_at'],
-          'deleted_at': recipe['deleted_at'],
+          'deleted_at': deletedAt,
           'is_pending': 0,
           'cooked_count': recipe['cooked_count'] ?? 0,
         },
@@ -469,6 +554,21 @@ class DatabaseHelper {
         where: 'id = ?', whereArgs: [id]);
   }
 
+  /// Moves this phone's recipes from one section name to another (rename).
+  Future<void> renameRecipeSection(String oldName, String newName) async {
+    final db = await database;
+    await db.update('recipes', {'section_name': newName},
+        where: 'section_name = ?', whereArgs: [oldName]);
+  }
+
+  /// Number of (not deleted) recipes per section name.
+  Future<Map<String, int>> getSectionRecipeCounts() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+        'SELECT section_name AS s, COUNT(*) AS c FROM recipes WHERE deleted_at IS NULL GROUP BY section_name');
+    return {for (final r in rows) (r['s'] ?? '').toString(): (r['c'] as int?) ?? 0};
+  }
+
   Future<int> deleteLocalSection(int id) async {
     final db = await database;
     return await db.delete('recipe_sections',
@@ -502,7 +602,12 @@ class DatabaseHelper {
             await db.rawQuery('SELECT COUNT(*) FROM recipe_sections')) ??
         0;
 
+    final ingredientCount = Sqflite.firstIntValue(
+            await db.rawQuery('SELECT COUNT(*) FROM ingredients')) ??
+        0;
+
     return {
+      'ingredientCount': ingredientCount,
       'recipeCount': recipeCount,
       'pantryValue': pantryValue,
       'sectionCount': sectionCount,
