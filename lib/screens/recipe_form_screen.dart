@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../app_settings.dart';
 import '../services/price_book.dart';
 import '../services/recipe_ocr_service.dart';
+import '../widgets/app_toast.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
@@ -409,15 +410,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   }
 
   void _showValidationSnack(String message) {
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message, style: const TextStyle(fontWeight: FontWeight.w600)),
-        backgroundColor: const Color(0xFFC0392B),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    );
+    AppToast.error(context, message);
   }
 
   String? _ingredientRowError(int index, Map<String, dynamic> row) {
@@ -518,33 +511,14 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     setState(() => _isLoading = false);
     if (error == null) {
       final isEdit = widget.recipe != null;
-      final messenger = ScaffoldMessenger.of(context);
+      AppToast.success(context, isEdit ? 'Recipe updated' : 'Recipe saved');
       Navigator.of(context).pop(true);
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            isEdit ? 'Recipe updated' : 'Recipe saved',
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: const Color(0xFF1F7A45),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
       try {
         Provider.of<SyncProvider>(context, listen: false)
             .triggerAutoBackupIfEnabled();
       } catch (e) {}
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: const Color(0xFFC0392B),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
-      );
+      AppToast.error(context, error);
     }
   }
 
@@ -889,13 +863,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       if (!mounted) return;
       setState(() => _isScanning = false);
       final msg = e.toString().replaceFirst('Exception: ', '');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          backgroundColor: const Color(0xFFB42318),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      AppToast.error(context, msg);
     }
   }
 
@@ -1117,11 +1085,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       }
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Filled ${picked.length} items — check qty & tap Save'),
-      backgroundColor: _accent,
-      behavior: SnackBarBehavior.floating,
-    ));
+    AppToast.success(context, 'Filled ${picked.length} items — check qty & tap Save');
   }
 
   void _openScannedPhotoZoom() {

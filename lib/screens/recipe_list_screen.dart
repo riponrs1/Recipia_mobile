@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../api_service.dart';
+import '../widgets/app_toast.dart';
 import '../app_settings.dart';
 import '../services/price_book.dart';
 import '../tab_events.dart';
@@ -653,32 +654,15 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   }
 
   void _showUndo(int id, String name) {
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      backgroundColor: _fg,
-      duration: const Duration(seconds: 5),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      content: Row(children: [
-        const Icon(Icons.delete_outline_rounded,
-            color: Color(0xFFFF8A7A), size: 20),
-        const SizedBox(width: 10),
-        Expanded(
-            child: Text('“$name” moved to Trash',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w600))),
-      ]),
-      action: SnackBarAction(
-        label: 'Undo',
-        textColor: _accentSoft,
-        onPressed: () async {
-          await _apiService.restoreRecipe(id);
-          if (mounted) _loadRecipes(background: true);
-        },
-      ),
-    ));
+    AppToast.info(
+      context,
+      '“$name” moved to Trash',
+      actionLabel: 'Undo',
+      onAction: () async {
+        await _apiService.restoreRecipe(id);
+        if (mounted) _loadRecipes(background: true);
+      },
+    );
   }
 
   void _showActions(Recipe r) {

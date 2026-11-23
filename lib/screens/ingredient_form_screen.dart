@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../app_settings.dart';
 import '../api_service.dart';
+import '../widgets/app_toast.dart';
 import '../database_helper.dart';
 import '../models/ingredient.dart';
 import '../models/recipe.dart';
@@ -135,26 +136,15 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
       final used = isEdit ? _book.usedIn(newName).length : 0;
       final priceChanged = isEdit &&
           widget.ingredient!.price != double.tryParse(_priceController.text.trim());
-      final messenger = ScaffoldMessenger.of(context);
       final msg = (priceChanged && used > 0)
           ? (widget.ingredient!.price == null
               ? 'Price added · $used recipe${used == 1 ? ' now has' : 's now have'} a full cost'
               : 'Price updated in $used recipe${used == 1 ? '' : 's'}')
           : (isEdit ? 'Ingredient updated' : 'Ingredient saved');
+      AppToast.success(context, msg);
       Navigator.of(context).pop(true);
-      messenger.hideCurrentSnackBar();
-      messenger.showSnackBar(SnackBar(
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: const Color(0xFF1F7A45),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
-      ));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(error),
-        backgroundColor: const Color(0xFFC0392B),
-        behavior: SnackBarBehavior.floating,
-      ));
+      AppToast.error(context, error);
     }
   }
 
@@ -647,19 +637,15 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
           .showSnackBar(SnackBar(content: Text(error), behavior: SnackBarBehavior.floating));
       return;
     }
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      duration: const Duration(seconds: 5),
-      content: Text('“${it.name}” deleted'),
-      action: SnackBarAction(
-        label: 'Undo',
-        onPressed: () async {
-          await ApiService().createIngredient(backup);
-          await PriceBook.instance.load();
-        },
-      ),
-    ));
+    AppToast.info(
+      context,
+      '“${it.name}” deleted',
+      actionLabel: 'Undo',
+      onAction: () async {
+        await ApiService().createIngredient(backup);
+        await PriceBook.instance.load();
+      },
+    );
     Navigator.of(context).pop(true);
   }
 
