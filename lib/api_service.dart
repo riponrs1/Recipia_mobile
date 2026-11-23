@@ -135,6 +135,9 @@ class ApiService {
         await prefs.setString('token', data['access_token']);
         return null;
       }
+      if (data is Map && data['requires_verification'] == true) {
+        return {'_verify': 'true'};
+      }
       final out = <String, String>{};
       final errors = data['errors'];
       if (errors is Map) {
@@ -146,6 +149,27 @@ class ApiService {
       return out;
     } catch (e) {
       return {'_': 'No connection. Check your internet and try again.'};
+    }
+  }
+
+  Future<String?> resendVerificationEmail(String email) async {
+    try {
+      final response = await _http.post(
+        Uri.parse('$baseUrl/email/resend'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'email': email}),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return null;
+      }
+      final data = jsonDecode(response.body);
+      return (data['message'] ?? 'Could not resend verification email')
+          .toString();
+    } catch (e) {
+      return 'No connection. Check your internet and try again.';
     }
   }
 

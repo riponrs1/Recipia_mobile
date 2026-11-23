@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../api_service.dart';
 import 'auth_widgets.dart';
 import 'main_screen.dart';
+import 'verify_email_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -68,6 +69,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
         behavior: SnackBarBehavior.floating,
         content: Text('Welcome to Recipia, ${name.split(' ').first}'),
       ));
+      return;
+    }
+    if (result['_verify'] == 'true') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => VerifyEmailScreen(email: email)),
+      );
       return;
     }
     setState(() {
