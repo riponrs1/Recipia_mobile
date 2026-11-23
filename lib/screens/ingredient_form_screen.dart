@@ -131,18 +131,24 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
     setState(() => _isLoading = false);
 
     if (error == null) {
-      final used = widget.ingredient == null ? 0 : _book.usedIn(newName).length;
-      final priceChanged = widget.ingredient != null &&
+      final isEdit = widget.ingredient != null;
+      final used = isEdit ? _book.usedIn(newName).length : 0;
+      final priceChanged = isEdit &&
           widget.ingredient!.price != double.tryParse(_priceController.text.trim());
-      if (priceChanged && used > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(widget.ingredient!.price == null
+      final messenger = ScaffoldMessenger.of(context);
+      final msg = (priceChanged && used > 0)
+          ? (widget.ingredient!.price == null
               ? 'Price added · $used recipe${used == 1 ? ' now has' : 's now have'} a full cost'
-              : 'Price updated in $used recipe${used == 1 ? '' : 's'}'),
-        ));
-      }
+              : 'Price updated in $used recipe${used == 1 ? '' : 's'}')
+          : (isEdit ? 'Ingredient updated' : 'Ingredient saved');
       Navigator.of(context).pop(true);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: const Color(0xFF1F7A45),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        content: Text(msg, style: const TextStyle(fontWeight: FontWeight.w600)),
+      ));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(error),

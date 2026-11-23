@@ -47,7 +47,12 @@ class RecipeFormScreen extends StatefulWidget {
 class _RecipeFormScreenState extends State<RecipeFormScreen> {
   final _apiService = ApiService();
   bool _isLoading = false;
+  bool _showValidation = false;
   final _formKey = GlobalKey<FormState>();
+  final _nameFieldKey = GlobalKey();
+  final _customSectionKey = GlobalKey();
+  final _ingredientsKey = GlobalKey();
+  final _methodKey = GlobalKey();
 
   final _nameController = TextEditingController();
   final _brandController = TextEditingController();
@@ -210,6 +215,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     _ingredientsList.add({
       'name': nameCtrl,
       'qty': qtyCtrl,
+      'focusNode': FocusNode(),
       'unit': unit,
       'price': 0.0,
       'calories': 0.0,
@@ -224,7 +230,13 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       setState(() {});
       return;
     }
+    final removed = _ingredientsList[index];
     setState(() => _ingredientsList.removeAt(index));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      (removed['name'] as TextEditingController).dispose();
+      (removed['qty'] as TextEditingController).dispose();
+      (removed['focusNode'] as FocusNode?)?.dispose();
+    });
   }
 
   double _liveTotalGrams() {
@@ -384,8 +396,79 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     }
   }
 
+  void _scrollToKey(GlobalKey key) {
+    final ctx = key.currentContext;
+    if (ctx != null) {
+      Scrollable.ensureVisible(
+        ctx,
+        duration: const Duration(milliseconds: 320),
+        curve: Curves.easeOutCubic,
+        alignment: 0.25,
+      );
+    }
+  }
+
+  void _showValidationSnack(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: const TextStyle(fontWeight: FontWeight.w600)),
+        backgroundColor: const Color(0xFFC0392B),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  String? _ingredientRowError(int index, Map<String, dynamic> row) {
+    if (!_showValidation) return null;
+    final name = (row['name'] as TextEditingController).text.trim();
+    final qtyText = (row['qty'] as TextEditingController).text.trim();
+    final hasAnyNamed = _ingredientsList.any(
+        (r) => (r['name'] as TextEditingController).text.trim().isNotEmpty);
+    if (!hasAnyNamed && index == 0) {
+      return 'Add at least one ingredient';
+    }
+    if (name.isEmpty && qtyText.isNotEmpty) {
+      return 'Enter ingredient name';
+    }
+    if (name.isNotEmpty && (qtyText.isEmpty || (double.tryParse(qtyText) ?? 0) <= 0)) {
+      return 'Enter quantity';
+    }
+    return null;
+  }
+
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    setState(() => _showValidation = true);
+    final formValid = _formKey.currentState!.validate();
+
+    // Determine the first missing field so we can scroll & alert clearly.
+    if (_nameController.text.trim().isEmpty) {
+      _scrollToKey(_nameFieldKey);
+      _showValidationSnack('Please enter a recipe name');
+      return;
+    }
+    if (_selectedSection == 'Other...' && _customSectionController.text.trim().isEmpty) {
+      _scrollToKey(_customSectionKey);
+      _showValidationSnack('Please enter a custom section name');
+      return;
+    }
+    for (int i = 0; i < _ingredientsList.length; i++) {
+      final err = _ingredientRowError(i, _ingredientsList[i]);
+      if (err != null) {
+        final ingName = (_ingredientsList[i]['name'] as TextEditingController).text.trim();
+        _scrollToKey(_ingredientsKey);
+        _showValidationSnack(
+          ingName.isNotEmpty ? '$err for "$ingName"' : err,
+        );
+        return;
+      }
+    }
+    if (_processController.text.trim().isEmpty || !formValid) {
+      _scrollToKey(_methodKey);
+      _showValidationSnack('Please enter the cooking method');
+      return;
+    }
     setState(() => _isLoading = true);
 
     // Ingredients is the one price list. Names already in it use the list's
@@ -434,14 +517,34 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (error == null) {
+      final isEdit = widget.recipe != null;
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop(true);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            isEdit ? 'Recipe updated' : 'Recipe saved',
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+          backgroundColor: const Color(0xFF1F7A45),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
       try {
         Provider.of<SyncProvider>(context, listen: false)
             .triggerAutoBackupIfEnabled();
       } catch (e) {}
     } else {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(error),
+          backgroundColor: const Color(0xFFC0392B),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
     }
   }
 
@@ -520,21 +623,27 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                     const SizedBox(height: 18),
                     _label('Recipe name'),
                     const SizedBox(height: 7),
-                    _field(_nameController, 'Recipe name', 'e.g. Honey BBQ Sauce',
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null),
+                    KeyedSubtree(
+                      key: _nameFieldKey,
+                      child: _field(_nameController, 'Recipe name', 'e.g. Honey BBQ Sauce',
+                          validator: (v) =>
+                              v == null || v.trim().isEmpty ? 'Please enter a recipe name' : null),
+                    ),
                     const SizedBox(height: 16),
                     _label('Section'),
                     const SizedBox(height: 7),
                     _sectionRow(),
                     if (_selectedSection == 'Other...') ...[
                       const SizedBox(height: 12),
-                      _field(_customSectionController, 'Custom section',
-                          'e.g. Italian',
-                          validator: (v) => (_selectedSection == 'Other...' &&
-                                  (v == null || v.isEmpty))
-                              ? 'Required'
-                              : null),
+                      KeyedSubtree(
+                        key: _customSectionKey,
+                        child: _field(_customSectionController, 'Custom section',
+                            'e.g. Italian',
+                            validator: (v) => (_selectedSection == 'Other...' &&
+                                    (v == null || v.trim().isEmpty))
+                                ? 'Please enter a section name'
+                                : null),
+                      ),
                     ],
                     const SizedBox(height: 16),
                     _label('Brand (optional)'),
@@ -546,6 +655,7 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                     _visibilitySeg(),
                     const SizedBox(height: 20),
                     Row(
+                      key: _ingredientsKey,
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
@@ -649,10 +759,13 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                     const SizedBox(height: 18),
                     _label('Method'),
                     const SizedBox(height: 7),
-                    _field(_processController, '', 'How it\'s made…',
-                        maxLines: 5,
-                        validator: (v) =>
-                            v == null || v.isEmpty ? 'Required' : null),
+                    KeyedSubtree(
+                      key: _methodKey,
+                      child: _field(_processController, '', 'How it\'s made…',
+                          maxLines: 5,
+                          validator: (v) =>
+                              v == null || v.trim().isEmpty ? 'Please enter the cooking method' : null),
+                    ),
                   ],
                 ),
               ),
@@ -1209,10 +1322,15 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
       maxLines: maxLines,
       keyboardType: keyboardType,
       validator: validator,
+      autovalidateMode: _showValidation
+          ? AutovalidateMode.onUserInteraction
+          : AutovalidateMode.disabled,
       style: const TextStyle(fontSize: 15, color: _fg),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(color: _muted, fontSize: 15),
+        errorStyle: const TextStyle(
+            color: Color(0xFFC0392B), fontSize: 12.5, fontWeight: FontWeight.w600),
         filled: true,
         fillColor: _surface,
         isDense: dense,
@@ -1227,6 +1345,12 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(14),
             borderSide: const BorderSide(color: _accent, width: 1.5)),
+        errorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFC0392B), width: 1.5)),
+        focusedErrorBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFFC0392B), width: 1.8)),
       ),
     );
   }
@@ -1471,18 +1595,25 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   Widget _ingredientRow(int index, Map<String, dynamic> row) {
     const dividerColor = Color(0xFFF0EDE6);
     const placeholderColor = Color(0xFF9CA3AF);
+    const errColor = Color(0xFFC0392B);
+    final rowError = _ingredientRowError(index, row);
+    final hasErr = rowError != null;
     final hintWidget = _rowHint(row);
 
     return Padding(
+      key: ObjectKey(row),
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             decoration: BoxDecoration(
-              color: _surface,
+              color: hasErr ? const Color(0xFFFFF5F5) : _surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _line),
+              border: Border.all(
+                color: hasErr ? errColor : _line,
+                width: hasErr ? 1.5 : 1,
+              ),
             ),
             child: Column(
               children: [
@@ -1601,10 +1732,29 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 5, 4, 0),
-            child: hintWidget,
-          ),
+          if (hasErr)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 5, 4, 0),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, size: 14, color: errColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    rowError,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: errColor,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 5, 4, 0),
+              child: hintWidget,
+            ),
         ],
       ),
     );
@@ -1612,9 +1762,14 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
 
   Widget _ingredientAutocomplete(Map<String, dynamic> row) {
     const placeholderColor = Color(0xFF9CA3AF);
-    return Autocomplete<String>(
-      initialValue:
-          TextEditingValue(text: (row['name'] as TextEditingController).text),
+    final nameCtrl = row['name'] as TextEditingController;
+    final focusNode = (row['focusNode'] as FocusNode?) ?? FocusNode();
+    row['focusNode'] = focusNode;
+
+    return RawAutocomplete<String>(
+      key: ObjectKey(row),
+      textEditingController: nameCtrl,
+      focusNode: focusNode,
       optionsBuilder: (v) => v.text.isEmpty
           ? const Iterable<String>.empty()
           : (PriceBook.instance.items.isNotEmpty
@@ -1624,12 +1779,9 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
               .toSet()
               .where((n) => n.toLowerCase().contains(v.text.toLowerCase())),
       onSelected: (s) {
-        setState(() => (row['name'] as TextEditingController).text = s);
+        setState(() => nameCtrl.text = s);
       },
       fieldViewBuilder: (context, c, fn, onSub) {
-        c.text = (row['name'] as TextEditingController).text;
-        c.addListener(
-            () => (row['name'] as TextEditingController).text = c.text);
         return TextField(
           controller: c,
           focusNode: fn,
@@ -1646,6 +1798,34 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             focusedBorder: InputBorder.none,
             contentPadding: EdgeInsets.zero,
             isDense: true,
+          ),
+        );
+      },
+      optionsViewBuilder: (context, onSelected, options) {
+        return Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            color: _surface,
+            borderRadius: BorderRadius.circular(12),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 200, maxWidth: 280),
+              child: ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                shrinkWrap: true,
+                itemCount: options.length,
+                itemBuilder: (ctx, i) {
+                  final opt = options.elementAt(i);
+                  return InkWell(
+                    onTap: () => onSelected(opt),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      child: Text(opt, style: const TextStyle(fontSize: 14.5, color: _fg)),
+                    ),
+                  );
+                },
+              ),
+            ),
           ),
         );
       },
