@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:path_provider/path_provider.dart';
@@ -24,6 +23,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   late TextEditingController _usernameController;
   late TextEditingController _bioController;
+  late TextEditingController _jobTitleController;
   late TextEditingController _locationController;
   late TextEditingController _websiteController;
 
@@ -36,6 +36,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _usernameController =
         TextEditingController(text: profile['username'] ?? '');
     _bioController = TextEditingController(text: profile['bio'] ?? '');
+    _jobTitleController = TextEditingController(text: profile['job_title'] ?? '');
     _locationController =
         TextEditingController(text: profile['location'] ?? '');
     _websiteController = TextEditingController(text: profile['website'] ?? '');
@@ -45,6 +46,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void dispose() {
     _usernameController.dispose();
     _bioController.dispose();
+    _jobTitleController.dispose();
     _locationController.dispose();
     _websiteController.dispose();
     super.dispose();
@@ -78,7 +80,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         uiSettings: [
           AndroidUiSettings(
             toolbarTitle: 'Edit Photo',
-            toolbarColor: const Color(0xFF1B4D3E),
+            toolbarColor: const Color(0xFFC84B31),
             toolbarWidgetColor: Colors.white,
             initAspectRatio: CropAspectRatioPreset.square,
             lockAspectRatio: true,
@@ -126,35 +128,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     if (source == null) return;
 
     try {
-      bool granted = false;
-      if (Platform.isAndroid) {
-        if (source == ImageSource.camera) {
-          final status = await Permission.camera.request();
-          granted = status.isGranted;
-        } else {
-          Map<Permission, PermissionStatus> statuses = await [
-            Permission.photos,
-            Permission.storage,
-          ].request();
-          if ((statuses[Permission.photos]?.isGranted ?? false) ||
-              (statuses[Permission.storage]?.isGranted ?? false)) {
-            granted = true;
-          }
-        }
-      } else {
-        final status = source == ImageSource.camera
-            ? await Permission.camera.request()
-            : await Permission.photos.request();
-        granted = status.isGranted || status.isLimited;
-      }
-
-      if (!granted && Platform.isAndroid) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Permission not granted. Action might fail.')));
-        }
-      }
-
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(source: source);
       if (pickedFile != null) {
@@ -188,6 +161,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final data = {
       'username': _usernameController.text,
       'bio': _bioController.text,
+      'job_title': _jobTitleController.text.trim(),
       'location': _locationController.text,
       'website': _websiteController.text,
     };
@@ -312,6 +286,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                             ? 'Too long'
                             : null),
                     const SizedBox(height: 16),
+                    _input(_jobTitleController, 'Job title',
+                        validator: (v) => (v != null && v.length > 100)
+                            ? 'Too long'
+                            : null),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(4, 6, 4, 0),
+                      child: Text('e.g. Head Chef, Pastry Chef, Owner — shown on your profile',
+                          style: TextStyle(fontSize: 12, color: Color(0xFF6D625B))),
+                    ),
+                    const SizedBox(height: 16),
                     _input(_bioController, 'Bio',
                         maxLines: 4,
                         validator: (v) => (v != null && v.length > 500)
@@ -399,9 +383,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 }
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);

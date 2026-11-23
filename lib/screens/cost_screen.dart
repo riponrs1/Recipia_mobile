@@ -6,15 +6,15 @@ import '../models/recipe.dart';
 import '../services/price_book.dart';
 import 'ingredient_form_screen.dart';
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _surface2 = Color(0xFFFBF6E8);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
-const _accentSoft = Color(0xFFE6EFE9);
-const _brown = Color(0xFF8D6E63);
+const _surface2 = Color(0xFFF4EFE8);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);
+const _accentSoft = Color(0xFFFCEEE9);
+const _brown = Color(0xFF6E2C1E);
 const _warn = Color(0xFFA8650A);
 const _warnSoft = Color(0xFFFBEFD9);
 
@@ -483,8 +483,29 @@ class _CostScreenState extends State<CostScreen> {
         padding: EdgeInsets.fromLTRB(18, 18, 18, 18 + MediaQuery.of(ctx).viewInsets.bottom),
         child: SafeArea(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-            Text(l.name,
-                style: const TextStyle(fontFamily: 'SpaceGrotesk', fontSize: 18, fontWeight: FontWeight.w700, color: _fg)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(l.name,
+                      style: const TextStyle(fontFamily: 'SpaceGrotesk', fontSize: 18, fontWeight: FontWeight.w700, color: _fg)),
+                ),
+                InkWell(
+                  onTap: () => Navigator.pop(ctx),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: _line),
+                    ),
+                    child: const Icon(Icons.close_rounded, size: 16, color: _muted),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(height: 4),
             Text.rich(
               TextSpan(children: [

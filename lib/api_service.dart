@@ -6,6 +6,18 @@ import 'package:path_provider/path_provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'database_helper.dart';
+import 'services/price_book.dart';
+
+/// Every plain request gives up after 20 s, so a slow or unreachable server
+/// never leaves a screen spinning; callers then fall back to the phone copy.
+class _TimeoutClient extends http.BaseClient {
+  final http.Client _inner = http.Client();
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      _inner.send(request).timeout(const Duration(seconds: 20));
+}
+
+final _http = _TimeoutClient();
 
 class ApiService {
   static const String baseUrl = String.fromEnvironment('API_URL',
@@ -24,6 +36,10 @@ class ApiService {
 
   static String getImageUrl(String path) {
     if (path.isEmpty) return '';
+    // the server may still hand out http:// links; Android blocks plain http
+    if (path.startsWith('http://recipia.bicitra.com')) {
+      return path.replaceFirst('http://', 'https://');
+    }
     if (path.startsWith('http')) return path;
     // Local file path check
     if (path.startsWith('/') ||
@@ -43,7 +59,7 @@ class ApiService {
 
   Future<String?> login(String email, String password) async {
     try {
-      final response = await http.post(
+      final response = await _http.post(
         Uri.parse('$baseUrl/login'),
         headers: {
           'Content-Type': 'application/json',
@@ -57,6 +73,13 @@ class ApiService {
         final token = data['access_token'];
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('token', token);
+        // set while the account waits to be deleted (30-day grace period)
+        final scheduled = data['deletion_scheduled_for'];
+        if (scheduled is String && scheduled.isNotEmpty) {
+          await prefs.setString('deletion_scheduled_for', scheduled);
+        } else {
+          await prefs.remove('deletion_scheduled_for');
+        }
         return null;
       } else {
         final data = jsonDecode(response.body);
@@ -67,9 +90,11 @@ class ApiService {
     }
   }
 
+  /// Sends the reset link. Returns null when sent; otherwise the reason
+  /// (e.g. "We can't find a user with that email address.").
   Future<String?> sendPasswordResetEmail(String email) async {
     try {
-      final response = await http.post(
+      final response = await _http.post(
         Uri.parse('$baseUrl/password/email'),
         headers: {
           'Content-Type': 'application/json',
@@ -77,22 +102,57 @@ class ApiService {
         },
         body: jsonEncode({'email': email}),
       );
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['message'];
-      } else {
-        final data = jsonDecode(response.body);
-        return data['message'] ?? 'Failed to send reset link';
-      }
+      if (response.statusCode == 200) return null;
+      final data = jsonDecode(response.body);
+      return (data['message'] ?? 'Could not send the link').toString();
     } catch (e) {
-      throw Exception('Connection error: $e');
+      return 'No connection. Check your internet and try again.';
+    }
+  }
+
+  /// Create an account. Returns null on success, or field -> message
+  /// ('name', 'email', 'password' or '_' for a general problem).
+  Future<Map<String, String>?> registerAccount(
+      String name, String email, String password, String confirmation) async {
+    try {
+      final response = await _http.post(
+        Uri.parse('$baseUrl/register'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: jsonEncode({
+          'name': name,
+          'email': email,
+          'password': password,
+          'password_confirmation': confirmation,
+        }),
+      );
+      final data = jsonDecode(response.body);
+      if ((response.statusCode == 200 || response.statusCode == 201) &&
+          data['access_token'] != null) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('token', data['access_token']);
+        return null;
+      }
+      final out = <String, String>{};
+      final errors = data['errors'];
+      if (errors is Map) {
+        errors.forEach((k, v) {
+          if (v is List && v.isNotEmpty) out[k.toString()] = v.first.toString();
+        });
+      }
+      if (out.isEmpty) out['_'] = (data['message'] ?? 'Could not create the account').toString();
+      return out;
+    } catch (e) {
+      return {'_': 'No connection. Check your internet and try again.'};
     }
   }
 
   Future<String?> register(String name, String email, String password,
       String passwordConfirmation) async {
     try {
-      final response = await http.post(
+      final response = await _http.post(
         Uri.parse('$baseUrl/register'),
         headers: {
           'Content-Type': 'application/json',
@@ -126,7 +186,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.get(
+      final response = await _http.get(
         Uri.parse('$baseUrl/user'),
         headers: {
           'Accept': 'application/json',
@@ -165,7 +225,7 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(
+      final response = await _http.get(
         Uri.parse('$baseUrl/home'),
         headers: {
           'Accept': 'application/json',
@@ -206,14 +266,14 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(
+      final response = await _http.get(
         Uri.parse('$baseUrl/recipes'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(const Duration(seconds: 25));
 
       if (response.statusCode == 200) {
         final recipes = jsonDecode(response.body);
@@ -237,7 +297,7 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(
+      final response = await _http.get(
         Uri.parse('$baseUrl/my-recipes'),
         headers: {
           'Accept': 'application/json',
@@ -268,13 +328,13 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(
+      final response = await _http.get(
         Uri.parse('$baseUrl/recipes/$id'),
         headers: {
           'Accept': 'application/json',
           'Authorization': 'Bearer $token',
         },
-      );
+      ).timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
@@ -418,7 +478,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.delete(
+      final response = await _http.delete(
         Uri.parse('$baseUrl/recipes/$id'),
         headers: {
           'Accept': 'application/json',
@@ -463,6 +523,7 @@ class ApiService {
   Future<void> _syncPendingActions() async {
     final pending = await DatabaseHelper().getPendingSyncs();
     if (pending.isEmpty) return;
+    final touchesIngredients = pending.any((p) => p['action'].toString().contains('INGREDIENT'));
 
     for (var item in pending) {
       final action = item['action'];
@@ -489,6 +550,10 @@ class ApiService {
           error = await updateIngredient(targetId, data, allowFallback: false);
         } else if (action == 'DELETE_INGREDIENT') {
           error = await deleteIngredient(targetId, allowFallback: false);
+        } else if (action == 'CREATE_INGREDIENTS') {
+          error = await _syncCreateIngredients(data['items'] as List);
+        } else if (action == 'MERGE_INGREDIENT') {
+          error = await _syncMergeIngredient(data['from_name'], data['into_name']);
         } else if (action == 'CREATE_SECTION') {
           error = await createSection(data['name'], allowFallback: false);
         } else if (action == 'UPDATE_SECTION') {
@@ -509,13 +574,66 @@ class ApiService {
         debugPrint('Sync Error: $e');
       }
     }
+    if (touchesIngredients) await PriceBook.instance.load();
+  }
+
+  /// Many new ingredients in one request. The phone's temporary rows are
+  /// replaced by the server's rows (real ids).
+  Future<String?> _syncCreateIngredients(List items) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final response = await _http.post(
+      Uri.parse('$baseUrl/ingredients/bulk'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({
+        'items': [
+          for (final i in items)
+            {
+              'name': i['name'],
+              'category': i['category'] ?? 'Uncategorized',
+              'unit': i['unit'] ?? 'kg',
+              if (i['price'] != null) 'price': i['price'],
+            }
+        ]
+      }),
+    );
+    if (response.statusCode != 201) return 'Failed to add ingredients';
+    final saved = jsonDecode(response.body) as List;
+    final db = DatabaseHelper();
+    for (final i in items) {
+      await db.deleteLocalIngredient(i['id'] as int);
+    }
+    await db.cacheIngredients(saved);
+    return null;
+  }
+
+  /// One request: the server switches every recipe from one name to the other.
+  Future<String?> _syncMergeIngredient(String from, String into) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final response = await _http.post(
+      Uri.parse('$baseUrl/ingredients/merge'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': 'Bearer $token',
+      },
+      body: jsonEncode({'from_name': from, 'into_name': into}),
+    );
+    // 422 = same name after all; nothing to do, drop it from the queue
+    if (response.statusCode == 200 || response.statusCode == 422) return null;
+    return 'Failed to merge ingredients';
   }
 
   Future<String?> _syncDeleteRecipe(int id) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.delete(
+      final response = await _http.delete(
         Uri.parse('$baseUrl/recipes/$id'),
         headers: {
           'Accept': 'application/json',
@@ -539,7 +657,7 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(
+      final response = await _http.get(
         Uri.parse('$baseUrl/ingredients'),
         headers: {
           'Accept': 'application/json',
@@ -554,8 +672,8 @@ class ApiService {
         } else {
           ingredients = json as List<dynamic>;
         }
-        await DatabaseHelper().cacheIngredients(ingredients);
-        return ingredients;
+        await DatabaseHelper().replaceIngredients(ingredients);
+        return await DatabaseHelper().getCachedIngredients();
       } else {
         throw Exception('Failed to load ingredients');
       }
@@ -570,7 +688,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.post(
+      final response = await _http.post(
         Uri.parse('$baseUrl/ingredients'),
         headers: {
           'Content-Type': 'application/json',
@@ -610,7 +728,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.put(
+      final response = await _http.put(
         Uri.parse('$baseUrl/ingredients/$id'),
         headers: {
           'Content-Type': 'application/json',
@@ -645,7 +763,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.delete(
+      final response = await _http.delete(
         Uri.parse('$baseUrl/ingredients/$id'),
         headers: {
           'Accept': 'application/json',
@@ -682,7 +800,7 @@ class ApiService {
     }
 
     try {
-      final response = await http.get(
+      final response = await _http.get(
         Uri.parse('$baseUrl/recipe-sections'),
         headers: {
           'Accept': 'application/json',
@@ -707,7 +825,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.post(
+      final response = await _http.post(
         Uri.parse('$baseUrl/recipe-sections'),
         headers: {
           'Content-Type': 'application/json',
@@ -749,7 +867,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.delete(
+      final response = await _http.delete(
         Uri.parse('$baseUrl/recipe-sections/$id'),
         headers: {
           'Accept': 'application/json',
@@ -779,7 +897,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.put(
+      final response = await _http.put(
         Uri.parse('$baseUrl/recipe-sections/$id'),
         headers: {
           'Content-Type': 'application/json',
@@ -844,7 +962,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.post(
+      final response = await _http.post(
         Uri.parse('$baseUrl/recipes/$id/share'),
         headers: {
           'Content-Type': 'application/json',
@@ -868,7 +986,7 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     try {
-      final response = await http.delete(
+      final response = await _http.delete(
         Uri.parse('$baseUrl/recipes/$recipeId/share/$userId'),
         headers: {
           'Accept': 'application/json',
@@ -886,12 +1004,51 @@ class ApiService {
     }
   }
 
+  /// Asks the server to delete the account in 30 days. Logs out on all
+  /// phones. Returns the deletion date (yyyy-mm-dd) or throws on error.
+  Future<String> requestAccountDeletion() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    final response = await _http.post(
+      Uri.parse('$baseUrl/account/delete'),
+      headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
+    );
+    if (response.statusCode != 200) {
+      throw Exception('Could not delete the account (${response.statusCode})');
+    }
+    final date = (jsonDecode(response.body)['delete_on'] ?? '').toString();
+    // the server already ended every session; clear this phone too
+    await prefs.remove('token');
+    await prefs.remove('deletion_scheduled_for');
+    await DatabaseHelper().clearAllData();
+    return date;
+  }
+
+  /// Cancels a pending account deletion ("Keep my account").
+  Future<String?> keepAccount() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    try {
+      final response = await _http.post(
+        Uri.parse('$baseUrl/account/keep'),
+        headers: {'Accept': 'application/json', 'Authorization': 'Bearer $token'},
+      );
+      if (response.statusCode == 200) {
+        await prefs.remove('deletion_scheduled_for');
+        return null;
+      }
+      return 'Could not keep the account (${response.statusCode})';
+    } catch (e) {
+      return 'No connection. Try again when you’re online.';
+    }
+  }
+
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     if (token != null) {
       try {
-        await http.post(
+        await _http.post(
           Uri.parse('$baseUrl/logout'),
           headers: {
             'Authorization': 'Bearer $token',
@@ -903,6 +1060,7 @@ class ApiService {
       }
     }
     await prefs.remove('token');
+    await prefs.remove('deletion_scheduled_for');
     await DatabaseHelper().clearAllData();
   }
 
@@ -927,6 +1085,36 @@ class ApiService {
       debugPrint('Error saving file permanently: $e');
       return path;
     }
+  }
+
+  /// Sends a recipe photo (handwritten or printed) to `/recipes-analyze`
+  /// and returns extracted `{name, brand_name, section_name, ingredients, process}`.
+  Future<Map<String, dynamic>> analyzeRecipeImage(String imagePath) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null) {
+      throw Exception('Please sign in to scan recipes from a photo.');
+    }
+
+    final req = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/recipes-analyze'),
+    );
+    req.headers['Accept'] = 'application/json';
+    req.headers['Authorization'] = 'Bearer $token';
+    req.files.add(await http.MultipartFile.fromPath('image', imagePath));
+
+    final streamed = await req.send().timeout(const Duration(seconds: 40));
+    final body = await streamed.stream.bytesToString();
+    final decoded = jsonDecode(body);
+
+    if (streamed.statusCode == 200 && decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+    final msg = (decoded is Map && decoded['message'] != null)
+        ? decoded['message'].toString()
+        : 'Could not read recipe photo (HTTP ${streamed.statusCode}).';
+    throw Exception(msg);
   }
 
   Future<String?> fetchAllDataForOffline() async {

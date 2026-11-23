@@ -3,20 +3,25 @@ import 'package:flutter/services.dart';
 // ignore: deprecated_member_use
 import 'package:share_plus/share_plus.dart';
 import '../api_service.dart';
+import '../app_settings.dart';
 import '../models/recipe.dart';
+import '../services/price_book.dart';
+import '../utils/unit_converter.dart';
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _surface2 = Color(0xFFFBF6E8);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
-const _accentSoft = Color(0xFFE6EFE9);
+const _surface2 = Color(0xFFF4EFE8);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);
+const _accentSoft = Color(0xFFFCEEE9);
 
 class RecipeShareScreen extends StatefulWidget {
   final Recipe recipe;
-  const RecipeShareScreen({super.key, required this.recipe});
+  final double batchMultiplier;
+  const RecipeShareScreen(
+      {super.key, required this.recipe, this.batchMultiplier = 1.0});
 
   @override
   State<RecipeShareScreen> createState() => _RecipeShareScreenState();
@@ -28,6 +33,10 @@ class _RecipeShareScreenState extends State<RecipeShareScreen> {
   late Recipe _recipe;
   String _visibility = 'private';
   bool _busy = false;
+  bool _optMethod = true;
+  bool _optWeight = true;
+  bool _optBold = true;
+  bool _optCost = false;
 
   @override
   void initState() {
@@ -102,8 +111,90 @@ class _RecipeShareScreenState extends State<RecipeShareScreen> {
         behavior: SnackBarBehavior.floating));
   }
 
+  String _fmtNum(double v) => v % 1 == 0
+      ? v.toInt().toString()
+      : v.toStringAsFixed(2).replaceAll(RegExp(r'0+$'), '').replaceAll(RegExp(r'\.$'), '');
+
+  String _fmtGrams(double g) =>
+      g >= 1000 ? '${_fmtNum(g / 1000)} kg' : '${_fmtNum(g)} g';
+
+  String _buildShareText() {
+    String b(String t) => _optBold ? '*$t*' : t;
+    final f = widget.batchMultiplier > 0 ? widget.batchMultiplier : 1.0;
+    final rawLines = PriceBook.parseLines(_recipe.ingredients);
+    final book = PriceBook.instance;
+    final ov = book.overrides[_recipe.id];
+
+    double totG = 0;
+    for (final l in rawLines) {
+      totG += UnitConverter.toGrams(l.qty * f, l.unit);
+    }
+
+    final meta = <String>[];
+    if (_recipe.sectionName.trim().isNotEmpty) meta.add(_recipe.sectionName.trim());
+    if ((f - 1.0).abs() > 1e-6) meta.add('${_fmtNum(f)}× batch');
+    if (_optWeight && totG > 0) meta.add('Total: ${_fmtGrams(totG)}');
+    if (_optCost) {
+      final sum = book.summarize(_recipe.id, rawLines, factor: f);
+      if (sum.total > 0) {
+        meta.add('Est. cost: ${AppSettings.currency}${sum.total.round()}');
+      }
+    }
+
+    final out = <String>[b(_recipe.name)];
+    if (meta.isNotEmpty) out.add(meta.join(' · '));
+    out.add('');
+    out.add(b('Ingredients'));
+
+    for (final l in rawLines) {
+      final q = l.qty * f;
+      final qs = PriceBook.isCount(l.unit)
+          ? _fmtNum((q * 2).round() / 2)
+          : _fmtNum(q >= 100
+              ? q.roundToDouble()
+              : q >= 10
+                  ? (q * 10).round() / 10
+                  : (q * 100).round() / 100);
+      var row = '• ${l.name} — $qs ${l.unit}';
+      if (_optCost) {
+        final lc = book.lineCost(l.name, q, l.unit, recipeOverrides: ov);
+        if (lc != null) row += ' (${AppSettings.currency}${lc.round()})';
+      }
+      out.add(row);
+    }
+
+    if (_optMethod && _recipe.process.trim().isNotEmpty) {
+      out.add('');
+      out.add(b('Method'));
+      final rows = _recipe.process
+          .split('\n')
+          .map((s) => s.trim().replaceFirst(RegExp(r'^\d+[.)]\s*'), ''))
+          .where((s) => s.isNotEmpty)
+          .toList();
+      final steps = rows.length > 1
+          ? rows
+          : _recipe.process
+              .split(RegExp(r'(?<=[.;])\s+'))
+              .map((s) => s.trim())
+              .where((s) => s.isNotEmpty)
+              .toList();
+      for (var i = 0; i < steps.length; i++) {
+        out.add('${i + 1}. ${steps[i]}');
+      }
+    }
+
+    out.add('');
+    out.add('— Shared from Recipia');
+    return out.join('\n');
+  }
+
+  void _copyAsText() {
+    Clipboard.setData(ClipboardData(text: _buildShareText()));
+    _toast('Recipe text copied');
+  }
+
   void _shareAsText() {
-    Share.share('Check out my recipe "${_recipe.name}" on Recipia.');
+    Share.share(_buildShareText(), subject: _recipe.name);
   }
 
   @override
@@ -210,38 +301,139 @@ class _RecipeShareScreenState extends State<RecipeShareScreen> {
                   else
                     ...shared.map((u) => _friendTile(u)),
                   const SizedBox(height: 22),
+                  _blockLabel('Share as text'),
+                  const SizedBox(height: 8),
+                  _shareTextCard(),
+                  const SizedBox(height: 22),
                   _blockLabel('Share link'),
                   const SizedBox(height: 8),
                   _copyLink(),
-                  const SizedBox(height: 14),
-                  GestureDetector(
-                    onTap: _shareAsText,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                          color: _surface,
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(color: _line)),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.share_outlined, size: 18, color: _accent),
-                          SizedBox(width: 8),
-                          Text('Share as text',
-                              style: TextStyle(
-                                  color: _accent,
-                                  fontWeight: FontWeight.w600,
-                                  fontSize: 14)),
-                        ],
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _shareTextCard() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _optChip('Method', _optMethod, () => setState(() => _optMethod = !_optMethod)),
+              _optChip('Total weight', _optWeight, () => setState(() => _optWeight = !_optWeight)),
+              _optChip('WhatsApp *bold*', _optBold, () => setState(() => _optBold = !_optBold)),
+              _optChip('Include cost', _optCost, () => setState(() => _optCost = !_optCost)),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            constraints: const BoxConstraints(maxHeight: 200),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _bg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _line),
+            ),
+            child: SingleChildScrollView(
+              child: Text(
+                _buildShareText(),
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12.5,
+                  height: 1.45,
+                  color: _fg,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: _copyAsText,
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _surface2,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _line),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.copy_rounded, size: 16, color: _fg),
+                        SizedBox(width: 6),
+                        Text('Copy text',
+                            style: TextStyle(
+                                color: _fg,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13.5)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _shareAsText,
+                  child: Container(
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _accent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.share_outlined, size: 16, color: Colors.white),
+                        SizedBox(width: 6),
+                        Text('Share text',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13.5)),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _optChip(String label, bool on, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: on ? _accentSoft : _surface2,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: on ? _accent : _line),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: on ? _accent : _muted)),
       ),
     );
   }

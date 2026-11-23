@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../app_settings.dart';
 import '../services/price_book.dart';
+import '../services/recipe_ocr_service.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
@@ -13,15 +14,15 @@ import '../database_helper.dart';
 import '../models/recipe.dart';
 import '../sync_provider.dart';
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _surface2 = Color(0xFFFBF6E8);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
+const _surface2 = Color(0xFFF4EFE8);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);
 const _warn = Color(0xFFA8650A);
-const _accentSoft = Color(0xFFE6EFE9);
+const _accentSoft = Color(0xFFFCEEE9);
 
 class RecipeFormScreen extends StatefulWidget {
   final Recipe? recipe;
@@ -55,6 +56,8 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   String _visibility = 'private';
 
   File? _itemPhoto;
+  File? _scannedPhoto;
+  bool _isScanning = false;
   final _picker = ImagePicker();
 
   final List<Map<String, dynamic>> _ingredientsList = [];
@@ -214,6 +217,13 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
   }
 
   void _removeIngredientRow(int index) {
+    if (_ingredientsList.length <= 1) {
+      final row = _ingredientsList[index];
+      (row['name'] as TextEditingController).clear();
+      (row['qty'] as TextEditingController).clear();
+      setState(() {});
+      return;
+    }
     setState(() => _ingredientsList.removeAt(index));
   }
 
@@ -257,9 +267,28 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text("Add photo",
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, fontSize: 17, color: _fg)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("Add photo",
+                      style: TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 17, color: _fg)),
+                  InkWell(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: _surface2,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _line),
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 16, color: _muted),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 18),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -359,22 +388,14 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
 
-    // Ingredients is the one price list: names not in it yet are added
-    // ("No price yet"); known names use the list's spelling.
+    // Ingredients is the one price list. Names already in it use the list's
+    // spelling; new names are NOT added on their own (the cook adds them).
     final book = PriceBook.instance;
     if (!book.loaded) await book.load();
-    var added = 0;
     for (final row in _ingredientsList) {
       final c = row['name'] as TextEditingController;
-      final name = c.text.trim();
-      if (name.isEmpty) continue;
-      final it = book.find(name);
-      if (it != null) {
-        c.text = it['name'].toString();
-      } else {
-        await book.addFromRecipe(name, row['unit'].toString());
-        added++;
-      }
+      final it = book.find(c.text.trim());
+      if (it != null) c.text = it['name'].toString();
     }
     final ingredientsData = _ingredientsList.map((row) {
       final name = (row['name'] as TextEditingController).text.trim();
@@ -409,18 +430,10 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
           itemPhotoPath: _itemPhoto?.path);
     }
 
-    if (added > 0) _apiService.syncPendingActions().catchError((_) {});
     await book.load();
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (error == null) {
-      if (added > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-              '$added new ingredient${added == 1 ? '' : 's'} added to Ingredients · add ${added == 1 ? 'its price' : 'their prices'} there'),
-        ));
-      }
       Navigator.of(context).pop(true);
       try {
         Provider.of<SyncProvider>(context, listen: false)
@@ -496,6 +509,13 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                   physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.fromLTRB(20, 6, 20, 120),
                   children: [
+                    if (!isEdit) ...[
+                      if (_scannedPhoto != null)
+                        _scanRefBanner()
+                      else
+                        _scanFromPhotoCta(),
+                      const SizedBox(height: 14),
+                    ],
                     _photoPicker(),
                     const SizedBox(height: 18),
                     _label('Recipe name'),
@@ -527,22 +547,94 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                     const SizedBox(height: 20),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        _label('Ingredients'),
-                        Row(mainAxisSize: MainAxisSize.min, children: [
-                          const Text('Servings',
-                              style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: _muted)),
-                          const SizedBox(width: 8),
-                          SizedBox(
-                            width: 64,
-                            child: _field(_servingsController, 'Servings', '1',
-                                dense: true,
-                                keyboardType: TextInputType.number),
+                        const Text(
+                          'Ingredients',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: -0.3,
+                            color: _fg,
                           ),
-                        ]),
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text(
+                              'Servings',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: _muted,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              height: 34,
+                              padding: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                color: _surface,
+                                borderRadius: BorderRadius.circular(17),
+                                border: Border.all(color: _line),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Semantics(
+                                    button: true,
+                                    label: 'Decrease servings',
+                                    child: InkWell(
+                                      onTap: () {
+                                        final cur = int.tryParse(_servingsController.text) ?? 1;
+                                        if (cur > 1) {
+                                          setState(() => _servingsController.text = (cur - 1).toString());
+                                        }
+                                      },
+                                      borderRadius: BorderRadius.circular(13),
+                                      child: const SizedBox(
+                                        width: 26,
+                                        height: 26,
+                                        child: Icon(Icons.remove_rounded, size: 16, color: _muted),
+                                      ),
+                                    ),
+                                  ),
+                                  Container(
+                                    constraints: const BoxConstraints(minWidth: 24),
+                                    alignment: Alignment.center,
+                                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                                    child: Text(
+                                      _servingsController.text.isEmpty ? '1' : _servingsController.text,
+                                      style: const TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: _fg,
+                                      ),
+                                    ),
+                                  ),
+                                  Semantics(
+                                    button: true,
+                                    label: 'Increase servings',
+                                    child: InkWell(
+                                      onTap: () {
+                                        final cur = int.tryParse(_servingsController.text) ?? 1;
+                                        if (cur < 99) {
+                                          setState(() => _servingsController.text = (cur + 1).toString());
+                                        }
+                                      },
+                                      borderRadius: BorderRadius.circular(13),
+                                      child: const SizedBox(
+                                        width: 26,
+                                        height: 26,
+                                        child: Icon(Icons.add_rounded, size: 16, color: _muted),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -596,6 +688,474 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _startScanFromPhoto() async {
+    if (_isScanning) return;
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: _surface,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Scan recipe photo',
+                      style: TextStyle(
+                          fontFamily: 'SpaceGrotesk',
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18,
+                          color: _fg)),
+                  InkWell(
+                    onTap: () => Navigator.of(ctx).pop(),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: _surface2,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _line),
+                      ),
+                      child: const Icon(Icons.close_rounded,
+                          size: 16, color: _muted),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Pick a handwritten note or printed recipe photo. Recipia reads the items & quantities so you can check and save.',
+                style: TextStyle(fontSize: 13, height: 1.4, color: _muted),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _sourceOption(ctx, Icons.camera_alt_outlined, 'Camera',
+                      ImageSource.camera),
+                  _sourceOption(ctx, Icons.photo_library_outlined, 'Gallery',
+                      ImageSource.gallery),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    try {
+      final XFile? picked = await _picker.pickImage(source: source);
+      if (picked == null || !mounted) return;
+      final original = File(picked.path);
+      final compressed = await _compressImage(original) ?? original;
+
+      setState(() => _isScanning = true);
+      Map<String, dynamic> result;
+      try {
+        result = await _apiService.analyzeRecipeImage(compressed.path);
+      } catch (_) {
+        // Fallback to 100% offline on-device ML Kit OCR using the sharp original photo
+        result = await RecipeOcrService.scanPhoto(original.path);
+      }
+      if (!mounted) return;
+      setState(() => _isScanning = false);
+
+      await _showScanReviewSheet(original, result);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isScanning = false);
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg),
+          backgroundColor: const Color(0xFFB42318),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _showScanReviewSheet(
+      File photo, Map<String, dynamic> data) async {
+    final rawIngs = (data['ingredients'] is List)
+        ? (data['ingredients'] as List)
+        : const [];
+    final items = rawIngs
+        .whereType<Map>()
+        .map((m) => {
+              'name': (m['name'] ?? '').toString().trim(),
+              'qty': (m['qty'] ?? '').toString().trim(),
+              'unit': (m['unit'] ?? 'g').toString().trim().toLowerCase(),
+              'on': true,
+            })
+        .where((m) => (m['name'] as String).isNotEmpty)
+        .toList();
+
+    final title = (data['name'] ?? '').toString().trim();
+    final isOffline = data['_source'] == 'offline_ocr';
+    final rawText = (data['_rawText'] ?? '').toString().trim();
+    bool showRaw = false;
+
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _bg,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setS) => SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title.isNotEmpty
+                            ? 'Scanned: $title'
+                            : 'Review scanned items',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontFamily: 'SpaceGrotesk',
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: _fg),
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () => Navigator.pop(ctx, false),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: _surface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: _line),
+                        ),
+                        child: const Icon(Icons.close_rounded,
+                            size: 16, color: _muted),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: _accentSoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Found ${items.length} ingredient${items.length == 1 ? '' : 's'} (${isOffline ? 'Offline OCR' : 'AI Vision'}) — uncheck any to skip.',
+                          style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: _accent),
+                        ),
+                      ),
+                      if (rawText.isNotEmpty)
+                        InkWell(
+                          onTap: () => setS(() => showRaw = !showRaw),
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: Text(
+                              showRaw ? 'Hide text' : 'Raw text',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: _accent,
+                                decoration: TextDecoration.underline,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                if (showRaw && rawText.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    constraints: const BoxConstraints(maxHeight: 110),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _line),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SelectableText(
+                        rawText,
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: _muted,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) =>
+                        const Divider(height: 1, color: _line),
+                    itemBuilder: (_, i) {
+                      final it = items[i];
+                      return CheckboxListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: _accent,
+                        value: it['on'] as bool,
+                        onChanged: (v) => setS(() => it['on'] = v ?? true),
+                        title: Text(it['name'].toString(),
+                            style: const TextStyle(
+                                fontSize: 14.5,
+                                fontWeight: FontWeight.w500,
+                                color: _fg)),
+                        secondary: Text(
+                          '${it['qty']} ${it['unit']}'.trim(),
+                          style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              color: _accent),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 14),
+                SizedBox(
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _accent,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    child: const Text('Fill form to check & save',
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    final picked = items.where((x) => x['on'] == true).toList();
+    setState(() {
+      _scannedPhoto = photo;
+      if (title.isNotEmpty) _nameController.text = title;
+      final brand = (data['brand_name'] ?? '').toString().trim();
+      if (brand.isNotEmpty) _brandController.text = brand;
+      final sec = (data['section_name'] ?? '').toString().trim();
+      if (sec.isNotEmpty && _sections.contains(sec)) {
+        _selectedSection = sec;
+      }
+      final process = (data['process'] ?? '').toString().trim();
+      if (process.isNotEmpty) _processController.text = process;
+      if (picked.isNotEmpty) {
+        _ingredientsList.clear();
+        for (final it in picked) {
+          final rawU = it['unit'].toString();
+          final normU = rawU == 'gm'
+              ? 'g'
+              : rawU == 'pcs'
+                  ? 'piece'
+                  : rawU;
+          _addIngredientRow(
+            name: it['name'].toString(),
+            qty: it['qty'].toString(),
+            unit: _units.contains(normU) ? normU : 'g',
+          );
+        }
+      }
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Filled ${picked.length} items — check qty & tap Save'),
+      backgroundColor: _accent,
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  void _openScannedPhotoZoom() {
+    if (_scannedPhoto == null) return;
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: InteractiveViewer(
+                child: Image.file(_scannedPhoto!, fit: BoxFit.contain),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(10),
+              child: InkWell(
+                onTap: () => Navigator.pop(ctx),
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white30),
+                  ),
+                  child: const Icon(Icons.close_rounded,
+                      color: Colors.white, size: 18),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scanFromPhotoCta() {
+    return GestureDetector(
+      onTap: _isScanning ? null : _startScanFromPhoto,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        decoration: BoxDecoration(
+          color: _accent,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: _isScanning
+                  ? const Padding(
+                      padding: EdgeInsets.all(10),
+                      child: CircularProgressIndicator(
+                          color: Colors.white, strokeWidth: 2.2),
+                    )
+                  : const Icon(Icons.document_scanner_outlined,
+                      color: Colors.white, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _isScanning ? 'Reading recipe photo…' : 'Scan from photo',
+                    style: const TextStyle(
+                        fontFamily: 'SpaceGrotesk',
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    _isScanning
+                        ? 'Extracting items, quantities & units'
+                        : 'Read recipe items & qty from your phone',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white.withValues(alpha: 0.88)),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                color: Colors.white, size: 22),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _scanRefBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: _accentSoft,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _line),
+      ),
+      child: Row(
+        children: [
+          GestureDetector(
+            onTap: _openScannedPhotoZoom,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Image.file(_scannedPhoto!,
+                  width: 44, height: 44, fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(width: 11),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Filled from your photo',
+                    style: TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w700,
+                        color: _accent)),
+                SizedBox(height: 1),
+                Text('Tap photo to compare · check qty & save',
+                    style: TextStyle(fontSize: 12, color: _muted)),
+              ],
+            ),
+          ),
+          InkWell(
+            onTap: () => setState(() => _scannedPhoto = null),
+            borderRadius: BorderRadius.circular(14),
+            child: const SizedBox(
+              width: 28,
+              height: 28,
+              child: Icon(Icons.close_rounded, size: 16, color: _muted),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -900,110 +1460,158 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
                     fontSize: 12, fontWeight: FontWeight.w600, color: _accent)),
           ),
         ),
-        const Text('? Otherwise it’s added as new.',
+        const Text('? Otherwise it’s saved as you wrote it.',
             style: TextStyle(fontSize: 12, color: _muted)),
       ]);
     }
-    return const Text('New · will be added to Ingredients',
+    return const Text('Not in Ingredients · no price (add it there if you want a cost)',
         style: TextStyle(fontSize: 12, color: _warn));
   }
 
   Widget _ingredientRow(int index, Map<String, dynamic> row) {
-    const double rowH = 56; // taller, roomier inputs
+    const dividerColor = Color(0xFFF0EDE6);
+    const placeholderColor = Color(0xFF9CA3AF);
+    final hintWidget = _rowHint(row);
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-      Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            flex: 5,
-            child: SizedBox(height: rowH, child: _ingredientAutocomplete(row)),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            flex: 2,
-            child: SizedBox(
-              height: rowH,
-              child: TextField(
-                controller: row['qty'],
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 17, color: _fg),
-                decoration: _miniDecoration('Qty'),
-              ),
+          Container(
+            decoration: BoxDecoration(
+              color: _surface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _line),
             ),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 92,
-            height: rowH,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              decoration: BoxDecoration(
-                  color: _surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _line)),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _units.contains(row['unit']) ? row['unit'] : 'g',
-                  isExpanded: true,
-                  isDense: true,
-                  icon: const Icon(Icons.expand_more_rounded,
-                      color: _muted, size: 20),
-                  style: const TextStyle(fontSize: 16, color: _fg),
-                  items: _units
-                      .map((u) => DropdownMenuItem(
-                          value: u,
-                          child:
-                              Text(u, style: const TextStyle(fontSize: 16))))
-                      .toList(),
-                  onChanged: (v) => setState(() => row['unit'] = v),
+            child: Column(
+              children: [
+                // Row 1: Full-width Ingredient Name + Remove icon
+                SizedBox(
+                  height: 48,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 16, right: 4),
+                          child: _ingredientAutocomplete(row),
+                        ),
+                      ),
+                      Semantics(
+                        button: true,
+                        label: 'Remove ingredient',
+                        child: InkWell(
+                          onTap: () => _removeIngredientRow(index),
+                          borderRadius: BorderRadius.circular(16),
+                          child: const SizedBox(
+                            width: 38,
+                            height: 38,
+                            child: Icon(Icons.close_rounded, color: _muted, size: 18),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                  ),
                 ),
-              ),
+                // 1px Horizontal Hairline Divider
+                const Divider(height: 1, thickness: 1, color: dividerColor),
+                // Row 2: 50% Qty + 50% Unit
+                SizedBox(
+                  height: 48,
+                  child: Row(
+                    children: [
+                      // Left 50%: Qty
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: Row(
+                            children: [
+                              const Text(
+                                'Qty',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: _muted,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: TextField(
+                                  controller: row['qty'],
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    color: _fg,
+                                    fontWeight: FontWeight.w400,
+                                  ),
+                                  decoration: const InputDecoration(
+                                    hintText: '0',
+                                    hintStyle: TextStyle(
+                                      color: placeholderColor,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w400,
+                                    ),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    contentPadding: EdgeInsets.zero,
+                                    isDense: true,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // 1px Vertical Hairline Divider
+                      Container(width: 1, height: 48, color: dividerColor),
+                      // Right 50%: Unit dropdown
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: _units.contains(row['unit']) ? row['unit'] : 'g',
+                              isExpanded: true,
+                              icon: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: _muted,
+                                size: 20,
+                              ),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: _fg,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              items: _units
+                                  .map((u) => DropdownMenuItem(
+                                        value: u,
+                                        child: Text(u, style: const TextStyle(fontSize: 16)),
+                                      ))
+                                  .toList(),
+                              onChanged: (v) => setState(() => row['unit'] = v),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-          GestureDetector(
-            onTap: () => _removeIngredientRow(index),
-            child: const Padding(
-              padding: EdgeInsets.only(left: 6),
-              child: Icon(Icons.close_rounded, color: _muted, size: 22),
-            ),
-          ),
-        ],
-      ),
           Padding(
             padding: const EdgeInsets.fromLTRB(4, 5, 4, 0),
-            child: _rowHint(row),
+            child: hintWidget,
           ),
         ],
       ),
     );
   }
 
-  InputDecoration _miniDecoration(String hint) => InputDecoration(
-        hintText: hint,
-        hintStyle: const TextStyle(color: _muted, fontSize: 15),
-        filled: true,
-        fillColor: _surface,
-        isDense: true,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 17),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _line)),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _line)),
-        focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _accent, width: 1.5)),
-      );
-
   Widget _ingredientAutocomplete(Map<String, dynamic> row) {
+    const placeholderColor = Color(0xFF9CA3AF);
     return Autocomplete<String>(
       initialValue:
           TextEditingValue(text: (row['name'] as TextEditingController).text),
@@ -1025,29 +1633,57 @@ class _RecipeFormScreenState extends State<RecipeFormScreen> {
         return TextField(
           controller: c,
           focusNode: fn,
-          style: const TextStyle(fontSize: 16, color: _fg),
-          decoration: _miniDecoration('Ingredient'),
+          style: const TextStyle(fontSize: 16, color: _fg, fontWeight: FontWeight.w400),
+          decoration: const InputDecoration(
+            hintText: 'Ingredient name',
+            hintStyle: TextStyle(
+              color: placeholderColor,
+              fontSize: 16,
+              fontWeight: FontWeight.w400,
+            ),
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            contentPadding: EdgeInsets.zero,
+            isDense: true,
+          ),
         );
       },
     );
   }
 
   Widget _addIngredientButton() {
-    return GestureDetector(
-      onTap: () => setState(
-          () => _addIngredientRow(unit: AppSettings.defaultUnit)),
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: _surface2,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _line, style: BorderStyle.solid),
+    return Semantics(
+      button: true,
+      label: 'Add ingredient',
+      child: InkWell(
+        onTap: () => setState(
+            () => _addIngredientRow(unit: AppSettings.defaultUnit)),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: double.infinity,
+          height: 48,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0xFFF6EDE8),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              Icon(Icons.add_rounded, color: _accent, size: 18),
+              SizedBox(width: 6),
+              Text(
+                'Add ingredient',
+                style: TextStyle(
+                  color: _accent,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 15,
+                ),
+              ),
+            ],
+          ),
         ),
-        child: const Text('+ Add ingredient',
-            style: TextStyle(
-                color: _accent, fontWeight: FontWeight.w600, fontSize: 14)),
       ),
     );
   }

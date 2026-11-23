@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../api_service.dart';
 import '../database_helper.dart';
 import '../utils/unit_converter.dart';
+import '../perf.dart';
 
 /// One price list for the whole app.
 ///
@@ -25,36 +26,62 @@ class PriceBook extends ChangeNotifier {
   /// recipeId -> lines, used for "Used in N recipes".
   final Map<int, _RecipeLines> _recipes = {};
 
+  // Built once per load(), so lookups never walk the whole list.
+  final Map<String, Map<String, dynamic>> _byKey = {};
+  final Map<String, List<RecipeUse>> _uses = {};
+  List<List<Map<String, dynamic>>>? _dupCache;
+  List<MissingName>? _missingCache;
+
   bool _loaded = false;
   bool get loaded => _loaded;
 
   // ---------------------------------------------------------------- names
+  static final _spaces = RegExp(r'\s+');
+  static final _brackets = RegExp(r'\(.*?\)');
+  static final _notWord = RegExp(r'[^a-z0-9 ]');
+
+  /// The name without brackets and punctuation: "Almond (fine)." -> "almond".
+  static String core(String k) =>
+      k.replaceAll(_brackets, '').replaceAll(_notWord, '').replaceAll(_spaces, ' ').trim();
   static String key(String? name) =>
-      (name ?? '').toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      (name ?? '').toLowerCase().replaceAll(_spaces, ' ').trim();
 
   Map<String, dynamic>? find(String? name) {
     final k = key(name);
-    if (k.isEmpty) return null;
-    for (final it in items) {
-      if (key(it['name']?.toString()) == k) return it;
-    }
-    return null;
+    return k.isEmpty ? null : _byKey[k];
   }
 
+  void _indexItems() {
+    _byKey.clear();
+    for (final it in items) {
+      _byKey.putIfAbsent(key(it['name']?.toString()), () => it);
+    }
+    _dupCache = null;
+    _missingCache = null;
+  }
+
+  /// Letters to change to turn [a] into [b]; stops early once it is over 2.
   static int _editDistance(String a, String b) {
     if ((a.length - b.length).abs() > 2) return 9;
-    final d = List<int>.generate(b.length + 1, (i) => i);
+    var prev = List<int>.generate(b.length + 1, (i) => i);
+    var cur = List<int>.filled(b.length + 1, 0);
     for (var i = 1; i <= a.length; i++) {
-      var prev = d[0];
-      d[0] = i;
+      cur[0] = i;
+      var rowMin = i;
+      final ca = a.codeUnitAt(i - 1);
       for (var j = 1; j <= b.length; j++) {
-        final t = d[j];
-        d[j] = [d[j] + 1, d[j - 1] + 1, prev + (a[i - 1] == b[j - 1] ? 0 : 1)]
-            .reduce(math.min);
-        prev = t;
+        var v = prev[j - 1] + (ca == b.codeUnitAt(j - 1) ? 0 : 1);
+        if (prev[j] + 1 < v) v = prev[j] + 1;
+        if (cur[j - 1] + 1 < v) v = cur[j - 1] + 1;
+        cur[j] = v;
+        if (v < rowMin) rowMin = v;
       }
+      if (rowMin > 2) return 9;
+      final t = prev;
+      prev = cur;
+      cur = t;
     }
-    return d[b.length];
+    return prev[b.length];
   }
 
   /// "Probably the same": a short form of the same words ("mayo" →
@@ -78,28 +105,42 @@ class PriceBook extends ChangeNotifier {
   /// A likely match for a name that is not in the list yet.
   Map<String, dynamic>? similar(String? name) {
     if (find(name) != null) return null;
-    for (final it in items) {
-      if (looksSame(name ?? '', it['name']?.toString() ?? '')) return it;
+    final k = key(name);
+    if (k.isEmpty) return null;
+    for (final e in _byKey.entries) {
+      if (e.key.isEmpty || e.key[0] != k[0]) continue;
+      if (looksSame(k, e.key) || looksSame(e.key, k)) return e.value;
     }
     return null;
   }
 
   /// Pairs that look like duplicates (shorter/typo first, longer second).
+  /// Worked out once per change to the list; names are only compared with
+  /// names that start with the same letter.
   List<List<Map<String, dynamic>>> duplicatePairs() {
+    if (_dupCache != null) return _dupCache!;
+    final groups = <String, List<MapEntry<String, Map<String, dynamic>>>>{};
+    for (final e in _byKey.entries) {
+      if (e.key.isNotEmpty) groups.putIfAbsent(e.key[0], () => []).add(e);
+    }
     final out = <List<Map<String, dynamic>>>[];
-    for (final a in items) {
-      for (final b in items) {
-        if (identical(a, b)) continue;
-        final an = a['name']?.toString() ?? '', bn = b['name']?.toString() ?? '';
-        if (key(bn).length >= key(an).length && looksSame(an, bn)) {
-          if (!out.any((p) => identical(p[0], b) && identical(p[1], a))) {
-            out.add([a, b]);
+    final paired = <String>{};
+    for (final g in groups.values) {
+      g.sort((x, y) => x.key.length.compareTo(y.key.length));
+      for (var i = 0; i < g.length; i++) {
+        if (paired.contains(g[i].key)) continue;
+        for (var j = i + 1; j < g.length; j++) {
+          if (paired.contains(g[j].key)) continue;
+          final ci = core(g[i].key), cj = core(g[j].key);
+          if ((ci.isNotEmpty && ci == cj) || looksSame(g[i].key, g[j].key)) {
+            out.add([g[i].value, g[j].value]);
+            paired..add(g[i].key)..add(g[j].key);
+            break;
           }
-          break;
         }
       }
     }
-    return out;
+    return _dupCache = out;
   }
 
   List<Map<String, dynamic>> needsPrice() =>
@@ -185,20 +226,7 @@ class PriceBook extends ChangeNotifier {
   }
 
   /// Recipes (not in Trash) that use this ingredient.
-  List<RecipeUse> usedIn(String name) {
-    final k = key(name);
-    final out = <RecipeUse>[];
-    _recipes.forEach((id, r) {
-      if (r.deleted) return;
-      for (final l in r.lines) {
-        if (key(l.name) == k) {
-          out.add(RecipeUse(id, r.name, l));
-          break;
-        }
-      }
-    });
-    return out;
-  }
+  List<RecipeUse> usedIn(String name) => _uses[key(name)] ?? const [];
 
   CostSummary summarize(int recipeId, List<RecipeLine> lines,
       {double factor = 1, Map<String, double>? tryPrices}) {
@@ -220,7 +248,9 @@ class PriceBook extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------- loading
-  Future<void> load() async {
+  Future<void> load() => perfAsync('pricebook load', _load);
+
+  Future<void> _load() async {
     final db = DatabaseHelper();
     items = (await db.getCachedIngredients())
         .map((e) => Map<String, dynamic>.from(e))
@@ -235,6 +265,16 @@ class PriceBook extends ChangeNotifier {
         r['created_at']?.toString() ?? '',
       );
     }
+    _uses.clear();
+    _recipes.forEach((id, r) {
+      if (r.deleted) return;
+      final seen = <String>{};
+      for (final l in r.lines) {
+        final k = key(l.name);
+        if (seen.add(k)) _uses.putIfAbsent(k, () => []).add(RecipeUse(id, r.name, l));
+      }
+    });
+    _indexItems();
     _loaded = true;
     notifyListeners();
   }
@@ -294,6 +334,9 @@ class PriceBook extends ChangeNotifier {
       'created_at': DateTime.now().toIso8601String(),
     });
     items.add(local);
+    _byKey[key(local['name']?.toString())] = local;
+    _dupCache = null;
+    _missingCache = null;
     // sent to the server by the next sync (one run, started by the caller)
     return local;
   }
@@ -304,7 +347,14 @@ class PriceBook extends ChangeNotifier {
     final db = DatabaseHelper();
     if (oldName != null && key(oldName) != key(newName)) {
       await db.renamePriceKey(key(oldName), key(newName));
-      await renameInRecipes(oldName, newName);
+      await db.renameLinesInRecipes({key(oldName): newName});
+      await db.addPendingSync({
+        'action': 'MERGE_INGREDIENT',
+        'target_id': 0,
+        'data': jsonEncode({'from_name': oldName, 'into_name': newName}),
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      ApiService().syncPendingActions().catchError((_) {});
     }
     if (newPrice != null && oldPrice != null && (newPrice - oldPrice).abs() > 1e-9) {
       await db.addPriceHistory(key(newName), oldPrice, newPrice, unit);
@@ -312,70 +362,45 @@ class PriceBook extends ChangeNotifier {
     await load();
   }
 
-  /// Moves every recipe line from one name to another (rename / merge).
-  Future<int> renameInRecipes(String fromName, String toName) async {
-    final db = DatabaseHelper();
-    final from = key(fromName);
-    var changed = 0;
-    for (final r in await db.getRecipesForPriceBook()) {
-      final raw = r['ingredients']?.toString();
-      if (raw == null || raw.isEmpty) continue;
-      try {
-        final list = jsonDecode(raw);
-        if (list is! List) continue;
-        var hit = false;
-        for (final m in list) {
-          if (m is Map && key(m['name']?.toString()) == from) {
-            m['name'] = toName;
-            hit = true;
-          }
-        }
-        if (!hit) continue;
-        changed++;
-        final full = await db.getRecipeById(r['id'] as int);
-        if (full == null) continue;
-        final updated = Map<String, dynamic>.from(full)..['ingredients'] = jsonEncode(list);
-        await db.saveLocalRecipe(updated);
-        await db.addPendingSync({
-          'action': 'UPDATE_RECIPE',
-          'target_id': r['id'],
-          'data': jsonEncode({
-            'name': full['name'],
-            'brand_name': full['brand_name'] ?? '',
-            'section_name': full['section_name'] ?? '',
-            'ingredients': jsonEncode(list),
-            'process': full['process'] ?? '',
-            'visibility': full['visibility'] ?? 'private',
-          }),
-          'created_at': DateTime.now().toIso8601String(),
-        });
-      } catch (e) {
-        debugPrint('rename in recipe failed: $e');
-      }
-    }
-    return changed;
-  }
+  /// Merge [from] into [into]: recipes switch over, [into] keeps [from]'s
+  /// price if it had none, then [from] is removed. Done on the phone in one
+  /// step; the server gets a single "merge" request in the background.
+  Future<int> merge(Map<String, dynamic> from, Map<String, dynamic> into) =>
+      mergeMany([(from, into)]);
 
-  /// Merge [from] into [into]: recipes switch over, then [from] is removed.
-  Future<int> merge(Map<String, dynamic> from, Map<String, dynamic> into) async {
-    final fromName = from['name'].toString(), intoName = into['name'].toString();
-    final n = usedIn(fromName).length;
+  /// Several merges in one go (one database transaction, one reload).
+  /// Returns how many recipe lines moved.
+  Future<int> mergeMany(List<(Map<String, dynamic>, Map<String, dynamic>)> pairs) async {
+    if (pairs.isEmpty) return 0;
     final db = DatabaseHelper();
-    await db.renamePriceKey(key(fromName), key(intoName));
-    await renameInRecipes(fromName, intoName);
-    if (_num(into['price']) == null && _num(from['price']) != null) {
-      await ApiService().updateIngredient(into['id'] as int, {
-        'name': intoName,
-        'category': into['category'] ?? 'Uncategorized',
-        'brand': into['brand'],
-        'price': from['price'],
-        'unit': from['unit'],
-        'calories': into['calories'] ?? from['calories'],
+    final renames = <String, String>{};
+    var moved = 0;
+    final now = DateTime.now().toIso8601String();
+    for (final (from, into) in pairs) {
+      final fromName = from['name'].toString(), intoName = into['name'].toString();
+      if (key(fromName) == key(intoName)) continue;
+      moved += usedIn(fromName).length;
+      renames[key(fromName)] = intoName;
+      await db.renamePriceKey(key(fromName), key(intoName));
+      if (_num(into['price']) == null && _num(from['price']) != null) {
+        await db.updateLocalIngredient(into['id'] as int, {
+          'price': _num(from['price']),
+          'unit': from['unit'],
+        });
+        into['price'] = from['price']; // a later pair into the same item sees it
+      }
+      await db.deleteLocalIngredient(from['id'] as int);
+      await db.addPendingSync({
+        'action': 'MERGE_INGREDIENT',
+        'target_id': from['id'] as int,
+        'data': jsonEncode({'from_name': fromName, 'into_name': intoName}),
+        'created_at': now,
       });
     }
-    await ApiService().deleteIngredient(from['id'] as int);
+    await db.renameLinesInRecipes(renames);
     await load();
-    return n;
+    ApiService().syncPendingActions().catchError((_) {});
+    return moved;
   }
 
   Future<void> setRecipeOverride(int recipeId, String name, double? price) async {
@@ -399,24 +424,14 @@ class PriceBook extends ChangeNotifier {
     await load();
     final todo = _recipes.entries
         .where((e) => !done.contains(e.key) && e.value.lines.isNotEmpty)
-        .toList()
-      ..sort((a, b) => b.value.createdAt.compareTo(a.value.createdAt)); // newest first wins
+        .toList();
     if (todo.isEmpty) return null;
-    final firstRun = done.isEmpty;
-    final report = MigrationReport();
-    final seen = <String>{};
-    for (final e in todo) {
-      for (final l in e.value.lines) {
-        final k = key(l.name);
-        if (find(l.name) != null || seen.contains(k)) continue;
-        seen.add(k);
-        // old recipes stored prices per kg (or per piece) — same as the new list unit
-        await addFromRecipe(l.name, l.unit,
-            price: (l.legacyPrice ?? 0) > 0 ? l.legacyPrice : null);
-        report.added++;
-      }
-    }
-    // per-recipe prices where a recipe carried a different price than the list
+    final report = MigrationReport()..firstRun = done.isEmpty;
+    // Names that are not in Ingredients are NOT added here any more: the
+    // Ingredients tab lists them for review ("names in your recipes").
+    // Only a recipe that carried a different price than the list keeps it
+    // as "price for this recipe only", so no cost changes.
+    final newOverrides = <(int, String, double)>[];
     for (final e in todo) {
       for (final l in e.value.lines) {
         final it = find(l.name);
@@ -424,24 +439,133 @@ class PriceBook extends ChangeNotifier {
         if (it == null || lp == null || lp <= 0) continue;
         if ((overrides[e.key] ?? const {}).containsKey(key(l.name))) continue;
         final listPerKg = _perKg(it);
-        if (listPerKg == null) continue;
-        if ((listPerKg - lp).abs() / lp > 0.005) {
-          final base = baseOf(it['unit']?.toString() ?? 'kg') ?? 1000;
-          final inListUnit = isCount(it['unit']?.toString()) ? lp * base : lp * base / 1000;
-          await db.setOverride(e.key, key(l.name), inListUnit);
-          report.differentPrices.add(key(l.name));
-        }
+        if (listPerKg == null || (listPerKg - lp).abs() / lp <= 0.005) continue;
+        final base = baseOf(it['unit']?.toString() ?? 'kg') ?? 1000;
+        newOverrides.add((e.key, key(l.name),
+            isCount(it['unit']?.toString()) ? lp * base : lp * base / 1000));
+        report.differentPrices.add(key(l.name));
       }
       done.add(e.key);
     }
+    await db.setOverrides(newOverrides);
     await db.cacheData('pricebook_done_ids', done.toList());
-    if (report.added > 0) ApiService().syncPendingActions().catchError((_) {});
-    await load();
-    report.noPrice = needsPrice().length;
-    report.duplicates = duplicatePairs().length;
+    if (newOverrides.isNotEmpty) overrides = await db.getAllOverrides();
     report.recipes = todo.length;
-    report.firstRun = firstRun;
     return report;
+  }
+
+  // ---------------------------------------------------------------- names in recipes
+  /// Names used in recipes that are not in Ingredients, grouped so that
+  /// "Salt", "salt." and "sault" are one row. Each group suggests a name
+  /// (the most used spelling) or an ingredient already in the list.
+  List<MissingName> missingFromList() {
+    if (_missingCache != null) return _missingCache!;
+    final counts = <String, int>{}, spelling = <String, String>{}, unit = <String, String>{};
+    final price = <String, double>{}, priceAt = <String, String>{};
+    _uses.forEach((k, list) {
+      if (k.isEmpty || _byKey.containsKey(k)) return;
+      counts[k] = list.length;
+      spelling[k] = list.first.line.name.trim().replaceAll(RegExp(r'[.,;]+$'), '');
+      unit[k] = list.first.line.unit;
+      for (final u in list) {
+        final lp = u.line.legacyPrice;
+        final at = _recipes[u.recipeId]?.createdAt ?? '';
+        if (lp != null && lp > 0 && at.compareTo(priceAt[k] ?? '') >= 0) {
+          price[k] = lp;
+          priceAt[k] = at;
+        }
+      }
+    });
+    // group: same name without punctuation/brackets, or "looks the same"
+    final keys = counts.keys.toList()..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+    final groups = <MissingName>[];
+    final byCore = <String, MissingName>{};
+    final byLetter = <String, List<(String, MissingName)>>{};
+    for (final k in keys) {
+      final c = core(k);
+      var g = byCore[c];
+      if (g == null && c.length >= 3) {
+        for (final (oc, other) in byLetter[c[0]] ?? const <(String, MissingName)>[]) {
+          if (looksSame(c, oc) || looksSame(oc, c)) {
+            g = other;
+            break;
+          }
+        }
+      }
+      if (g == null) {
+        g = MissingName(spelling[k]!, libUnitFor(unit[k]!));
+        groups.add(g);
+        if (c.isNotEmpty) byLetter.putIfAbsent(c[0], () => []).add((c, g));
+      }
+      byCore.putIfAbsent(c, () => g!);
+      g.keys.add(k);
+      g.spellings.add(spelling[k]!);
+      g.recipeCount += counts[k]!;
+      if (price[k] != null && g.price == null) g.price = price[k];
+    }
+    final listByCore = <String, Map<String, dynamic>>{};
+    _byKey.forEach((k, it) => listByCore.putIfAbsent(core(k), () => it));
+    for (final g in groups) {
+      for (final k in g.keys) {
+        final m = listByCore[core(k)] ?? similar(k);
+        if (m != null) {
+          g.matches = m;
+          break;
+        }
+      }
+    }
+    return _missingCache = groups;
+  }
+
+  /// Adds the picked names in one step. A group that matches an existing
+  /// ingredient is merged into it instead of being added again.
+  Future<int> addMissing(List<MissingName> picks) async {
+    if (picks.isEmpty) return 0;
+    final db = DatabaseHelper();
+    final renames = <String, String>{};
+    final toCreate = <Map<String, dynamic>>[];
+    final merges = <Map<String, String>>[];
+    var base = DateTime.now().millisecondsSinceEpoch;
+    for (final g in picks) {
+      final target = g.useExisting && g.matches != null ? g.matches!['name'].toString() : g.name.trim();
+      if (!(g.useExisting && g.matches != null)) {
+        toCreate.add({
+          'id': base++,
+          'name': target,
+          'category': guessCategory(target),
+          'unit': g.unit,
+          // old recipe prices were per kg / per piece, the same number as the list unit
+          'price': g.price,
+          'auto_added': 1,
+        });
+      }
+      for (final k in g.keys) {
+        if (k == key(target)) continue;
+        renames[k] = target;
+        merges.add({'from_name': k, 'into_name': target});
+      }
+    }
+    await db.saveIngredientsAndRename(toCreate, renames);
+    final now = DateTime.now().toIso8601String();
+    if (toCreate.isNotEmpty) {
+      await db.addPendingSync({
+        'action': 'CREATE_INGREDIENTS',
+        'target_id': 0,
+        'data': jsonEncode({'items': toCreate}),
+        'created_at': now,
+      });
+    }
+    for (final m in merges) {
+      await db.addPendingSync({
+        'action': 'MERGE_INGREDIENT',
+        'target_id': 0,
+        'data': jsonEncode(m),
+        'created_at': now,
+      });
+    }
+    await load();
+    ApiService().syncPendingActions().catchError((_) {});
+    return picks.length;
   }
 
   /// Price per kg (or per piece) the old app expects inside recipe lines.
@@ -499,4 +623,17 @@ class MigrationReport {
   final Set<String> differentPrices = {};
   int noPrice = 0;
   int duplicates = 0;
+}
+
+/// A name used in recipes that is not in the Ingredients list yet.
+class MissingName {
+  String name; // suggested name to add
+  final String unit; // kg, L or pcs
+  final Set<String> keys = {}; // every spelling, as keys
+  final List<String> spellings = [];
+  int recipeCount = 0;
+  double? price; // newest price a recipe carried
+  Map<String, dynamic>? matches; // an ingredient already in the list that looks the same
+  bool useExisting = true; // merge into [matches] instead of adding
+  MissingName(this.name, this.unit);
 }

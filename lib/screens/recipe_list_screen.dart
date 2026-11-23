@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../api_service.dart';
 import '../app_settings.dart';
+import '../services/price_book.dart';
 import '../tab_events.dart';
 import '../database_helper.dart';
 import '../models/recipe.dart';
@@ -12,14 +13,14 @@ import 'recipe_form_screen.dart';
 import 'recipe_share_screen.dart';
 
 // ---- Redesign palette (matches app theme) ----
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _surface2 = Color(0xFFFBF6E8);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
-const _accentSoft = Color(0xFFE6EFE9);
+const _surface2 = Color(0xFFF4EFE8);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);
+const _accentSoft = Color(0xFFFCEEE9);
 
 class RecipeListScreen extends StatefulWidget {
   final String? initialCategory;
@@ -139,6 +140,17 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
   }
 
   Future<void> _fetchCurrentUser() async {
+    // who you are, from the phone first (no waiting for the server)
+    final cached = await DatabaseHelper().getCachedData('user_profile');
+    if (cached is Map && cached['id'] != null && mounted) {
+      final user = Map<String, dynamic>.from(cached);
+      setState(() {
+          _currentUserId = user['id'];
+          final n = (user['name'] ?? '').toString();
+          _userName = n == 'Offline Chef' ? '' : n.split(' ').first;
+          if (_allRecipes.isNotEmpty) _filterRecipes();
+      });
+    }
     try {
       final user = await _apiService.getUser();
       if (mounted) {
@@ -192,8 +204,55 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
           _isLoading = false;
         });
       }
+      _fillMissingDetails(recipes);
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  bool _filling = false;
+
+  /// Recipes saved without their ingredients (older server lists left them
+  /// out) are fetched quietly, a few at a time, so the list shows real
+  /// counts and weights and every recipe opens instantly — even offline later.
+  Future<void> _fillMissingDetails(List<Recipe> recipes) async {
+    if (_filling) return;
+    final missing = recipes
+        .where((r) => r.id > 0 && _computeCount(r) == 0)
+        .map((r) => r.id)
+        .toList();
+    if (missing.isEmpty) return;
+    _filling = true;
+    try {
+      const batch = 4;
+      for (var i = 0; i < missing.length; i += batch) {
+        if (!mounted) return;
+        final ids = missing.skip(i).take(batch);
+        final got = await Future.wait(ids.map((id) async {
+          try {
+            final data = await _apiService.getRecipe(id);
+            if (PriceBook.parseLines(
+                    data['ingredients'] is String
+                        ? data['ingredients']
+                        : jsonEncode(data['ingredients'] ?? []))
+                .isEmpty) return false;
+            await DatabaseHelper().saveLocalRecipe(data);
+            return true;
+          } catch (_) {
+            return false;
+          }
+        }));
+        if (!got.contains(true)) {
+          if (got.every((g) => !g) && i == 0) return; // offline: try next time
+          continue;
+        }
+        final cached = await DatabaseHelper().getCachedRecipes();
+        if (!mounted) return;
+        setState(() => _applyRecipes(cached.map((j) => Recipe.fromJson(j)).toList()));
+      }
+      await PriceBook.instance.migrateIfNeeded();
+    } finally {
+      _filling = false;
     }
   }
 
@@ -408,7 +467,7 @@ class _RecipeListScreenState extends State<RecipeListScreen> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
-                  color: isSelected ? _accent : const Color(0xFFF1EAD9),
+                  color: isSelected ? _accent : const Color(0xFFF4EAE4),
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(
                       color: isSelected ? Colors.transparent : _line),

@@ -7,13 +7,13 @@ import '../models/recipe.dart';
 import '../services/price_book.dart';
 import 'recipe_detail_screen.dart';
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _surface2 = Color(0xFFFBF6E8);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
+const _surface2 = Color(0xFFF4EFE8);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);
 const _warn = Color(0xFFA8650A);
 const _warnSoft = Color(0xFFFBEFD9);
 const _red = Color(0xFFC0392B);
@@ -48,7 +48,6 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
 
   final _book = PriceBook.instance;
   List<Map<String, dynamic>> _history = [];
-  String? _mergeInto;
 
   @override
   void initState() {
@@ -192,7 +191,7 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
                             color: _warnSoft,
                             borderRadius: BorderRadius.circular(12)),
                         child: const Text(
-                            'Added automatically from a recipe. Add a price so recipe costs are complete.',
+                            'No price yet. Add one so recipe costs are complete.',
                             style: TextStyle(fontSize: 13, height: 1.4, color: _fg)),
                       ),
                     _field(
@@ -459,45 +458,6 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
           );
         })),
       ],
-      _blockTitle('Duplicate?'),
-      Row(children: [
-        Expanded(
-          child: DropdownButtonFormField<String>(
-            value: _mergeInto,
-            isExpanded: true,
-            hint: const Text('Choose an ingredient…'),
-            items: (_book.items
-                    .where((x) => x['id'] != it.id)
-                    .map((x) => x['name'].toString())
-                    .toSet()
-                    .toList()
-                  ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase())))
-                .map((n) => DropdownMenuItem(value: n, child: Text(n)))
-                .toList(),
-            onChanged: (v) => setState(() => _mergeInto = v),
-            decoration: _boxDecoration(),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          height: 50,
-          child: ElevatedButton(
-            onPressed: _mergeInto == null ? null : _merge,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accent,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Merge', style: TextStyle(fontWeight: FontWeight.w600)),
-          ),
-        ),
-      ]),
-      const Padding(
-        padding: EdgeInsets.fromLTRB(2, 8, 2, 0),
-        child: Text('Recipes using this one will use the chosen ingredient instead.',
-            style: TextStyle(fontSize: 12, color: _muted)),
-      ),
       const SizedBox(height: 22),
       SizedBox(
         width: double.infinity,
@@ -591,20 +551,6 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
         builder: (_) => RecipeDetailScreen(recipe: Recipe.fromJson(row))));
   }
 
-  Future<void> _merge() async {
-    final from = _book.find(widget.ingredient!.name);
-    final into = _book.find(_mergeInto);
-    if (from == null || into == null) return;
-    setState(() => _isLoading = true);
-    final n = await _book.merge(from, into);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      content: Text('Merged into “${into['name']}” · $n recipe${n == 1 ? '' : 's'} updated'),
-    ));
-    Navigator.of(context).pop(true);
-  }
-
   Future<void> _askDelete() async {
     final it = widget.ingredient!;
     final used = _book.usedIn(it.name);
@@ -621,12 +567,33 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Delete “${it.name}”?',
-                  style: const TextStyle(
-                      fontFamily: 'SpaceGrotesk',
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: _fg)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text('Delete “${it.name}”?',
+                        style: const TextStyle(
+                            fontFamily: 'SpaceGrotesk',
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            color: _fg)),
+                  ),
+                  InkWell(
+                    onTap: () => Navigator.pop(ctx),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: _surface,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: _line),
+                      ),
+                      child: const Icon(Icons.close_rounded, size: 16, color: _muted),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 10),
               if (used.isEmpty)
                 Text(
@@ -641,16 +608,10 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
                       'Used in ${used.length} recipe${used.length == 1 ? '' : 's'}: '
                       '${used.take(3).map((u) => u.recipeName).join(', ')}'
                       '${used.length > 3 ? ' and ${used.length - 3} more' : ''}.\n'
-                      'Those recipes keep the amount, but their cost will show “no price”. '
-                      'If it’s the same as another ingredient, merge it instead.',
+                      'Those recipes keep the amount, but their cost will show “no price”.',
                       style: const TextStyle(fontSize: 14, height: 1.45, color: _fg)),
                 ),
               const SizedBox(height: 16),
-              if (used.isNotEmpty) ...[
-                _sheetBtn('Merge into another ingredient', _accent, Colors.white,
-                    () => Navigator.pop(ctx, 'merge')),
-                const SizedBox(height: 8),
-              ],
               _sheetBtn(used.isEmpty ? 'Delete' : 'Delete anyway', _red, Colors.white,
                   () => Navigator.pop(ctx, 'delete')),
               const SizedBox(height: 8),
@@ -661,13 +622,6 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
       ),
     );
     if (!mounted) return;
-    if (choice == 'merge') {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text('Choose the ingredient to merge into, then tap Merge'),
-      ));
-      return;
-    }
     if (choice != 'delete') return;
     setState(() => _isLoading = true);
     final backup = {
@@ -745,17 +699,6 @@ class _IngredientFormScreenState extends State<IngredientFormScreen> {
     );
   }
 
-  InputDecoration _boxDecoration() => InputDecoration(
-        filled: true,
-        fillColor: _surface,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _line)),
-        focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: const BorderSide(color: _accent)),
-      );
 
   String _money(double v) => '${AppSettings.currency}${v % 1 == 0 ? v.toStringAsFixed(0) : v.toStringAsFixed(1)}';
   String _fmtQty(double q) => q % 1 == 0 ? q.toStringAsFixed(0) : q.toStringAsFixed(1);

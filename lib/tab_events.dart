@@ -14,3 +14,7 @@ class TabReselect extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+/// Ask the main screen to switch to a tab (0 recipes, 1 ingredients, 2 profile)
+/// and show that tab from its start.
+final ValueNotifier<int?> tabRequest = ValueNotifier(null);

@@ -1,14 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'google_drive_service.dart';
-import 'database_helper.dart';
+import 'package:sqflite/sqflite.dart';
+
 import 'api_service.dart';
+import 'database_helper.dart';
 
 enum SyncStatus { idle, syncing, success, error }
 
+/// Keeps the phone's copy in step with the Recipia account.
+/// The account on the server is the backup; there is no Google Drive.
 class SyncProvider with ChangeNotifier {
-  final GoogleDriveService _driveService = GoogleDriveService();
-
   SyncStatus _status = SyncStatus.idle;
   SyncStatus get status => _status;
 
@@ -18,22 +23,13 @@ class SyncProvider with ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  bool _isGoogleSignedIn = false;
-  bool get isGoogleSignedIn => _isGoogleSignedIn;
-
+  // name/email/photo remembered from the last sign-in, shown while offline
   String? _cachedEmail;
   String? _cachedName;
   String? _cachedPhoto;
-
-  String? get userEmail => _driveService.currentUser?.email ?? _cachedEmail;
-  String? get userName => _driveService.currentUser?.displayName ?? _cachedName;
-  String? get userPhoto => _driveService.currentUser?.photoUrl ?? _cachedPhoto;
-
-  bool _isAutoBackupEnabled = false;
-  bool get isAutoBackupEnabled => _isAutoBackupEnabled;
-
-  Map<String, dynamic>? _cloudMetadata;
-  Map<String, dynamic>? get cloudMetadata => _cloudMetadata;
+  String? get userEmail => _cachedEmail;
+  String? get userName => _cachedName;
+  String? get userPhoto => _cachedPhoto;
 
   int _localDatabaseSize = 0;
   int get localDatabaseSize => _localDatabaseSize;
@@ -41,97 +37,37 @@ class SyncProvider with ChangeNotifier {
   int _localPhotoCount = 0;
   int get localPhotoCount => _localPhotoCount;
 
+  Map<String, dynamic> _stats = const {};
+  Map<String, dynamic> get stats => _stats;
+
+  String? _lastDownload;
+  String? get lastDownload => _lastDownload;
+
   SyncProvider() {
     _init();
   }
 
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
-    _isAutoBackupEnabled = prefs.getBool('auto_backup_enabled') ?? false;
-
-    // Load cached identity
     _cachedEmail = prefs.getString('user_email');
     _cachedName = prefs.getString('user_name');
     _cachedPhoto = prefs.getString('user_photo');
-
-    _localDatabaseSize = await _driveService.getLocalDatabaseSize();
-    _localPhotoCount = await _driveService.getLocalPhotoCount();
-    _isGoogleSignedIn = await _driveService.signInSilently();
-
-    if (_isGoogleSignedIn) {
-      await _persistIdentity();
-      await fetchCloudMetadata();
-      if (_isAutoBackupEnabled) {
-        backupData(); // Silent background backup
-      }
-    }
-    notifyListeners();
+    _lastDownload = prefs.getString('last_offline_download');
+    await refreshAfterRestore();
   }
 
-  Future<void> _persistIdentity() async {
-    final user = _driveService.currentUser;
-    if (user != null) {
-      final prefs = await SharedPreferences.getInstance();
-      _cachedEmail = user.email;
-      _cachedName = user.displayName;
-      _cachedPhoto = user.photoUrl;
-
-      await prefs.setString('user_email', _cachedEmail!);
-      if (_cachedName != null) {
-        await prefs.setString('user_name', _cachedName!);
-      }
-      if (_cachedPhoto != null) {
-        await prefs.setString('user_photo', _cachedPhoto!);
-      }
-    }
-  }
-
-  Future<void> toggleAutoBackup(bool value) async {
-    _isAutoBackupEnabled = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('auto_backup_enabled', value);
-    notifyListeners();
-    if (value && _isGoogleSignedIn) {
-      backupData();
-    }
-  }
-
+  /// True on a phone that is signed in but has no recipes yet (new install).
   Future<bool> detectMissingLocalData() async {
-    if (!_isGoogleSignedIn || _cloudMetadata == null) return false;
-    final size = await _driveService.getLocalDatabaseSize();
-    return size < 50000; // Less than 50KB likely means empty/new install
+    final prefs = await SharedPreferences.getInstance();
+    if ((prefs.getString('token') ?? '').isEmpty) return false;
+    final s = await DatabaseHelper().getProfileStats();
+    return ((s['recipeCount'] as num?) ?? 0) == 0;
   }
 
-  Future<void> triggerAutoBackupIfEnabled() async {
-    if (_isAutoBackupEnabled && _isGoogleSignedIn) {
-      backupData(); // Run in background
-    }
-  }
-
-  Future<void> signIn() async {
-    _status = SyncStatus.syncing;
-    notifyListeners();
-
-    final success = await _driveService.signIn();
-    if (success) {
-      _isGoogleSignedIn = true;
-      await _persistIdentity();
-      await fetchCloudMetadata();
-      _status = SyncStatus.idle;
-    } else {
-      _isGoogleSignedIn = false;
-      _status = SyncStatus.error;
-      _errorMessage = 'Failed to sign in to Google';
-    }
-    notifyListeners();
-  }
+  /// Kept for callers from the Drive days; changes go to the account by themselves.
+  Future<void> triggerAutoBackupIfEnabled() async {}
 
   Future<void> signOut() async {
-    await _driveService.signOut();
-    _isGoogleSignedIn = false;
-    _cloudMetadata = null;
-
-    // Clear cached identity
     _cachedEmail = null;
     _cachedName = null;
     _cachedPhoto = null;
@@ -139,89 +75,9 @@ class SyncProvider with ChangeNotifier {
     await prefs.remove('user_email');
     await prefs.remove('user_name');
     await prefs.remove('user_photo');
-
+    await prefs.remove('last_offline_download');
+    _lastDownload = null;
     notifyListeners();
-  }
-
-  Future<void> fetchCloudMetadata() async {
-    try {
-      _cloudMetadata = await _driveService.getBackupMetadata();
-      _localDatabaseSize = await _driveService.getLocalDatabaseSize();
-      _localPhotoCount = await _driveService.getLocalPhotoCount();
-    } catch (e) {
-      debugPrint('Cloud metadata fetch error (Drive API might be disabled): $e');
-    }
-    notifyListeners();
-  }
-
-  Future<bool> backupData() async {
-    if (!_isGoogleSignedIn) return false;
-
-    _status = SyncStatus.syncing;
-    notifyListeners();
-
-    try {
-      // 1. Close current DB connection to flush WAL/checkpoint
-      await DatabaseHelper().closeDatabase();
-
-      await _driveService.backupDatabase();
-      await fetchCloudMetadata();
-      _status = SyncStatus.success;
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-          'last_backup_time', DateTime.now().toIso8601String());
-
-      notifyListeners();
-      return true;
-    } catch (e) {
-      _status = SyncStatus.error;
-      _errorMessage = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
-
-  /// Explicit full backup for backend migration
-  Future<bool> forceFullCloudBackup() async {
-    return await backupData();
-  }
-
-  Future<bool> restoreData() async {
-    if (!_isGoogleSignedIn) return false;
-
-    _status = SyncStatus.syncing;
-    notifyListeners();
-
-    try {
-      // 1. Close current DB connection to allow file overwrite
-      await DatabaseHelper().closeDatabase();
-
-      final success = await _driveService.restoreDatabase();
-      if (success) {
-        // 2. Re-fetch local stats (this will also reopen the DB when needed)
-        _localDatabaseSize = await _driveService.getLocalDatabaseSize();
-        _localPhotoCount = await _driveService.getLocalPhotoCount();
-        _status = SyncStatus.success;
-        notifyListeners();
-        return true;
-      } else {
-        _status = SyncStatus.error;
-        _errorMessage = 'No backup found on Google Drive';
-        notifyListeners();
-        return false;
-      }
-    } catch (e) {
-      _status = SyncStatus.error;
-      _errorMessage = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
-
-  Future<String?> getLastBackupTime() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('last_backup_time');
   }
 
   Future<void> restoreRecipe(int id) async {
@@ -233,12 +89,17 @@ class SyncProvider with ChangeNotifier {
     return await DatabaseHelper().getTrashRecipes();
   }
 
+  /// Re-count what is stored on this phone.
   Future<void> refreshAfterRestore() async {
-    _localDatabaseSize = await _driveService.getLocalDatabaseSize();
-    _localPhotoCount = await _driveService.getLocalPhotoCount();
+    _localDatabaseSize = await _localSize();
+    _localPhotoCount = await _photoCount();
+    try {
+      _stats = await DatabaseHelper().getProfileStats();
+    } catch (_) {}
     notifyListeners();
   }
 
+  /// Download every recipe, ingredient and photo from the account.
   Future<String?> downloadAllFromServer() async {
     _isDownloadingAll = true;
     _status = SyncStatus.syncing;
@@ -248,8 +109,9 @@ class SyncProvider with ChangeNotifier {
       final error = await ApiService().fetchAllDataForOffline();
       if (error == null) {
         _status = SyncStatus.success;
-        // Update local stats
-        _localDatabaseSize = await _driveService.getLocalDatabaseSize();
+        _lastDownload = DateTime.now().toIso8601String();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('last_offline_download', _lastDownload!);
       } else {
         _status = SyncStatus.error;
         _errorMessage = error;
@@ -257,7 +119,41 @@ class SyncProvider with ChangeNotifier {
       return error;
     } finally {
       _isDownloadingAll = false;
-      notifyListeners();
+      await refreshAfterRestore();
+    }
+  }
+
+  Future<Directory> _mediaDir() async =>
+      Directory(p.join((await getApplicationDocumentsDirectory()).path, 'media'));
+
+  Future<int> _localSize() async {
+    try {
+      var total = 0;
+      final db = File(p.join(await getDatabasesPath(), 'recipia_offline.db'));
+      if (await db.exists()) total += await db.length();
+      final media = await _mediaDir();
+      if (await media.exists()) {
+        await for (final e in media.list(recursive: true)) {
+          if (e is File) total += await e.length();
+        }
+      }
+      return total;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  Future<int> _photoCount() async {
+    try {
+      final media = await _mediaDir();
+      if (!await media.exists()) return 0;
+      var n = 0;
+      await for (final e in media.list(recursive: true)) {
+        if (e is File) n++;
+      }
+      return n;
+    } catch (_) {
+      return 0;
     }
   }
 }

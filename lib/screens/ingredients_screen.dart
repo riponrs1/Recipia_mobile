@@ -1,26 +1,42 @@
 import 'package:flutter/material.dart';
 import '../app_settings.dart';
 import '../api_service.dart';
+import '../database_helper.dart';
 import '../models/ingredient.dart';
 import '../services/price_book.dart';
+import '../perf.dart';
+import 'ingredient_review_screen.dart';
 import '../tab_events.dart';
 import 'ingredient_form_screen.dart';
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _surface2 = Color(0xFFFBF6E8);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
-const _accentSoft = Color(0xFFE6EFE9);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _chip = Color(0xFFF4EAE4);
+const _accent = Color(0xFFC84B31);
+const _accentSoft = Color(0xFFFCEEE9);
 const _warn = Color(0xFFA8650A);
 const _warnSoft = Color(0xFFFBEFD9);
 const _needsPrice = 'Needs price';
 
-/// Lets other screens open Ingredients on a filter (e.g. after the update summary).
+/// Lets other screens open Ingredients on a filter (e.g. "Needs price").
 final ValueNotifier<String?> ingredientFilterRequest = ValueNotifier(null);
 
+enum _Sort { az, used, priceHigh, priceLow, changed }
+
+const _sortNames = {
+  _Sort.az: ('A–Z', 'By name'),
+  _Sort.used: ('Most used', 'In the most recipes first'),
+  _Sort.priceHigh: ('Price ↓', 'Highest price first'),
+  _Sort.priceLow: ('Price ↑', 'Lowest price first'),
+  _Sort.changed: ('Changed', 'Price changed most recently first'),
+};
+
+/// The price list: one clean list, search + sort, filters with counts, and a
+/// quiet "Review" line for names in recipes and look-alikes. Nothing is
+/// added or merged unless the cook chooses it.
 class IngredientsScreen extends StatefulWidget {
   const IngredientsScreen({super.key});
 
@@ -30,29 +46,17 @@ class IngredientsScreen extends StatefulWidget {
 
 class _IngredientsScreenState extends State<IngredientsScreen> {
   final _apiService = ApiService();
-  bool _isLoading = true;
-  List<Ingredient> _ingredients = [];
-  List<Ingredient> _filteredIngredients = [];
-
-  String _searchQuery = '';
-  String _selectedCategory = 'All';
-
-  final List<String> _categories = [
-    'All',
-    'Dairy',
-    'Produce',
-    'Meat',
-    'Seafood',
-    'Spices',
-    'Oils',
-    'Sauces',
-    'Dry Goods',
-    'Beverages',
-  ];
-
   final _book = PriceBook.instance;
   final _searchCtl = TextEditingController();
-  final ScrollController _scroll = ScrollController();
+  final _scroll = ScrollController();
+
+  bool _isLoading = true;
+  List<Ingredient> _ingredients = [];
+  List<Ingredient> _shown = [];
+  String _query = '';
+  String _category = 'All';
+  _Sort _sort = _Sort.az;
+  Map<String, String> _lastChange = const {}; // ingredient key -> changed_at
 
   @override
   void initState() {
@@ -76,16 +80,16 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   void _onBook() {
     if (!mounted) return;
     _ingredients = _book.items.map((j) => Ingredient.fromJson(j)).toList();
-    _filterIngredients();
+    _apply();
   }
 
-  /// Ingredients tab tapped again: show all ingredients from the top.
+  /// Ingredients tab tapped again: all ingredients, from the top.
   void _onTabReselect() {
     if (TabReselect.instance.tab != 1 || !mounted) return;
     _searchCtl.clear();
-    _searchQuery = '';
-    setState(() => _selectedCategory = 'All');
-    _filterIngredients();
+    _query = '';
+    _category = 'All';
+    _apply();
     if (_scroll.hasClients) {
       _scroll.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
@@ -94,206 +98,294 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
   void _onFilterRequest() {
     final f = ingredientFilterRequest.value;
     if (f == null || !mounted) return;
-    setState(() => _selectedCategory = f);
-    _filterIngredients();
+    _category = f;
+    _apply();
     ingredientFilterRequest.value = null;
   }
 
   Future<void> _loadIngredients() async {
-    if (_ingredients.isEmpty) setState(() => _isLoading = true);
+    // phone copy first, so the list appears at once…
+    await _book.load();
+    _lastChange = await DatabaseHelper().latestPriceChanges();
+    if (mounted) {
+      _ingredients = _book.items.map((j) => Ingredient.fromJson(j)).toList();
+      if (_ingredients.isNotEmpty) _isLoading = false;
+      _apply();
+    }
     try {
-      await _apiService.getIngredients(); // refreshes the local copy when online
+      // …then the server's list when online
+      await _apiService.getIngredients();
       await _book.load();
-      final loaded = _book.items.map((json) => Ingredient.fromJson(json)).toList();
       if (mounted) {
-        setState(() {
-          _ingredients = loaded;
-          _filterIngredients();
-          _isLoading = false;
-        });
+        _ingredients = _book.items.map((j) => Ingredient.fromJson(j)).toList();
+        _isLoading = false;
+        _apply();
       }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _filterIngredients() {
-    setState(() {
-      _filteredIngredients = _ingredients.where((ingredient) {
-        final matchesSearch =
-            ingredient.name.toLowerCase().contains(_searchQuery.toLowerCase());
-        final matchesCategory = _selectedCategory == 'All' ||
-            (_selectedCategory == _needsPrice
-                ? ingredient.price == null
-                : ingredient.category.toLowerCase() ==
-                    _selectedCategory.toLowerCase());
-        return matchesSearch && matchesCategory;
-      }).toList()
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-    });
+  int _used(Ingredient i) => _book.usedIn(i.name).length;
+
+  void _apply() {
+    final q = _query.trim().toLowerCase();
+    final list = _ingredients.where((i) {
+      if (q.isNotEmpty && !i.name.toLowerCase().contains(q)) return false;
+      if (_category == 'All') return true;
+      if (_category == _needsPrice) return i.price == null;
+      return i.category.toLowerCase() == _category.toLowerCase();
+    }).toList();
+    int byName(Ingredient a, Ingredient b) => a.name.toLowerCase().compareTo(b.name.toLowerCase());
+    switch (_sort) {
+      case _Sort.az:
+        list.sort(byName);
+      case _Sort.used:
+        list.sort((a, b) {
+          final d = _used(b) - _used(a);
+          return d != 0 ? d : byName(a, b);
+        });
+      case _Sort.priceHigh:
+        list.sort((a, b) {
+          final d = (b.price ?? -1).compareTo(a.price ?? -1);
+          return d != 0 ? d : byName(a, b);
+        });
+      case _Sort.priceLow:
+        list.sort((a, b) {
+          final d = (a.price ?? double.infinity).compareTo(b.price ?? double.infinity);
+          return d != 0 ? d : byName(a, b);
+        });
+      case _Sort.changed:
+        list.sort((a, b) {
+          final d = (_lastChange[PriceBook.key(b.name)] ?? '')
+              .compareTo(_lastChange[PriceBook.key(a.name)] ?? '');
+          return d != 0 ? d : byName(a, b);
+        });
+    }
+    setState(() => _shown = list);
   }
 
+  String _money(double v) {
+    final s = v.round().toString().replaceAllMapped(RegExp(r'\B(?=(\d{3})+(?!\d))'), (m) => ',');
+    return '${AppSettings.currency}$s';
+  }
+
+  // ------------------------------------------------------------------ build
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => perfSync('ingredients screen build', () => _build(context));
+
+  Widget _build(BuildContext context) {
     return Scaffold(
       backgroundColor: _bg,
       body: SafeArea(
         bottom: false,
-        child: Column(
-          children: [
-            _header(),
-            _search(),
-            if (!_isLoading && _ingredients.isNotEmpty) _summary(),
-            if (!_isLoading) ..._banners(),
-            _chips(),
-            const SizedBox(height: 6),
-            Expanded(
-              child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: _accent))
-                  : _filteredIngredients.isEmpty
-                      ? _empty()
-                      : RefreshIndicator(
-                          color: _accent,
-                          onRefresh: _loadIngredients,
-                          child: ListView.builder(
-                            controller: _scroll,
-                            physics: const AlwaysScrollableScrollPhysics(
-                                parent: BouncingScrollPhysics()),
-                            padding:
-                                const EdgeInsets.fromLTRB(20, 4, 20, 120),
-                            itemCount: _filteredIngredients.length,
-                            itemBuilder: (context, i) =>
-                                _card(_filteredIngredients[i]),
-                          ),
+        child: Column(children: [
+          _header(),
+          _search(),
+          if (!_isLoading) _reviewLine(),
+          _chips(),
+          const SizedBox(height: 6),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: _accent))
+                : _shown.isEmpty
+                    ? _empty()
+                    : RefreshIndicator(
+                        color: _accent,
+                        onRefresh: _loadIngredients,
+                        child: ListView.builder(
+                          controller: _scroll,
+                          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                          padding: const EdgeInsets.fromLTRB(20, 2, 20, 120),
+                          itemCount: _shown.length + 1,
+                          itemBuilder: (_, i) => i == _shown.length
+                              ? Padding(
+                                  padding: const EdgeInsets.only(top: 14),
+                                  child: Text(
+                                      _shown.length == _ingredients.length
+                                          ? '${_shown.length} ingredients'
+                                          : '${_shown.length} of ${_ingredients.length}',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontSize: 12.5, color: _muted)),
+                                )
+                              : _row(_shown[i], i == 0, i == _shown.length - 1),
                         ),
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: FloatingActionButton(
-          onPressed: _navigateToAdd,
-          backgroundColor: _accent,
-          elevation: 10,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(19)),
-          child: const Icon(Icons.add_rounded, color: Colors.white, size: 30),
-        ),
+                      ),
+          ),
+        ]),
       ),
     );
   }
 
   Widget _header() {
+    final priced = _ingredients.where((i) => i.price != null).length;
+    final value = _ingredients.fold<double>(0, (t, i) => t + (i.price ?? 0));
+    final valueText = value >= 1000
+        ? '${AppSettings.currency}${(value / 1000).toStringAsFixed(1)}k'
+        : _money(value);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Ingredients',
-                    style: TextStyle(fontFamily: 'SpaceGrotesk',
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5,
-                        color: _fg)),
-                const SizedBox(height: 2),
-                Text('${_ingredients.length} in your pantry',
-                    style: const TextStyle(fontSize: 13, color: _muted)),
-              ],
-            ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text('Ingredients',
+                style: TextStyle(
+                    fontFamily: 'SpaceGrotesk',
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                    color: _fg)),
+            const SizedBox(height: 2),
+            Text(
+                _isLoading
+                    ? ' '
+                    : '${_ingredients.length} ingredients · $priced priced · $valueText',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13, color: _muted)),
+          ]),
+        ),
+        GestureDetector(
+          onTap: _navigateToAdd,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+                color: _surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: _line)),
+            child: const Icon(Icons.add_rounded, color: _fg, size: 22),
           ),
-          GestureDetector(
-            onTap: _navigateToAdd,
-            child: Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                  color: _surface,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: _line)),
-              child: const Icon(Icons.add_rounded, color: _fg, size: 22),
-            ),
-          ),
-        ],
-      ),
+        ),
+      ]),
     );
   }
 
   Widget _search() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 6, 20, 10),
+      padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
       child: Container(
         decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _line),
-        ),
-        child: TextField(
-          controller: _searchCtl,
-          onChanged: (val) {
-            _searchQuery = val;
-            _filterIngredients();
-          },
-          style: const TextStyle(fontSize: 15, color: _fg),
-          decoration: const InputDecoration(
-            hintText: 'Search ingredients',
-            hintStyle: TextStyle(color: _muted, fontSize: 15),
-            prefixIcon: Icon(Icons.search_rounded, color: _muted, size: 20),
-            border: InputBorder.none,
-            contentPadding: EdgeInsets.symmetric(vertical: 14),
+            color: _surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: _line)),
+        child: Row(children: [
+          Expanded(
+            child: TextField(
+              controller: _searchCtl,
+              onChanged: (v) {
+                _query = v;
+                _apply();
+              },
+              style: const TextStyle(fontSize: 15, color: _fg),
+              decoration: const InputDecoration(
+                hintText: 'Search ingredients',
+                hintStyle: TextStyle(color: _muted, fontSize: 15),
+                prefixIcon: Icon(Icons.search_rounded, color: _muted, size: 20),
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.symmetric(vertical: 13),
+              ),
+            ),
           ),
-        ),
+          Container(width: 1, height: 22, color: _line),
+          InkWell(
+            onTap: _openSort,
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(children: [
+                const Icon(Icons.swap_vert_rounded, size: 18, color: _accent),
+                const SizedBox(width: 4),
+                Text(_sortNames[_sort]!.$1,
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _accent)),
+              ]),
+            ),
+          ),
+        ]),
       ),
     );
   }
 
+  /// "Review · 32 from recipes · 1 look-alike" — only when there is something.
+  Widget _reviewLine() {
+    final nr = _book.missingFromList().length;
+    final la = _book.duplicatePairs().length;
+    if (nr == 0 && la == 0) return const SizedBox.shrink();
+    Widget link(String t, VoidCallback onTap) => GestureDetector(
+          onTap: onTap,
+          child: Text(t,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: _accent,
+                  decoration: TextDecoration.underline,
+                  decorationColor: _line)),
+        );
+    return Container(
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.fromLTRB(22, 0, 20, 8),
+      child: Wrap(crossAxisAlignment: WrapCrossAlignment.center, spacing: 6, children: [
+        const Text('Review', style: TextStyle(fontSize: 13, color: _muted, fontWeight: FontWeight.w500)),
+        if (nr > 0)
+          link('$nr from recipes',
+              () => _review(const MissingNamesScreen(), (n) => 'Added $n to Ingredients')),
+        if (nr > 0 && la > 0) const Text('·', style: TextStyle(color: _muted)),
+        if (la > 0)
+          link('$la look-alike${la == 1 ? '' : 's'}',
+              () => _review(const DuplicatesScreen(), (n) => 'Merged $n pair${n == 1 ? '' : 's'}')),
+      ]),
+    );
+  }
+
   Widget _chips() {
+    final counts = <String, int>{};
+    for (final i in _ingredients) {
+      final c = i.category.trim().isEmpty ? 'Uncategorized' : i.category.trim();
+      counts[c] = (counts[c] ?? 0) + 1;
+    }
     final np = _ingredients.where((i) => i.price == null).length;
-    final cats = [
-      'All',
-      if (np > 0 || _selectedCategory == _needsPrice) _needsPrice,
-      ..._categories.skip(1),
+    final cats = counts.keys.toList()..sort();
+    final items = <(String, int)>[
+      ('All', _ingredients.length),
+      if (np > 0 || _category == _needsPrice) (_needsPrice, np),
+      for (final c in cats) (c, counts[c]!),
     ];
     return SizedBox(
-      height: 38,
+      height: 36,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        itemCount: cats.length,
-        itemBuilder: (context, index) {
-          final cat = cats[index];
-          final isSelected = _selectedCategory == cat;
+        itemCount: items.length,
+        itemBuilder: (_, i) {
+          final (cat, n) = items[i];
+          final on = _category == cat;
           final warn = cat == _needsPrice;
           return Padding(
-            padding: const EdgeInsets.only(right: 8.0),
+            padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () {
-                setState(() => _selectedCategory = cat);
-                _filterIngredients();
+                _category = cat;
+                _apply();
+                if (_scroll.hasClients) _scroll.jumpTo(0);
               },
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 13),
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? (warn ? _warn : _accent)
-                      : (warn ? _warnSoft : const Color(0xFFF1EAD9)),
+                  color: on ? (warn ? _warn : _accent) : (warn ? _warnSoft : _chip),
                   borderRadius: BorderRadius.circular(30),
-                  border: Border.all(
-                      color: isSelected || warn ? Colors.transparent : _line),
+                  border: Border.all(color: on || warn ? Colors.transparent : _line),
                 ),
-                child: Text(warn ? '$cat · $np' : cat,
-                    style: TextStyle(
-                        color: isSelected ? Colors.white : (warn ? _warn : _fg),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13)),
+                child: Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: cat),
+                    TextSpan(
+                        text: '  $n',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: (on ? Colors.white : (warn ? _warn : _fg)).withValues(alpha: .6))),
+                  ]),
+                  style: TextStyle(
+                      color: on ? Colors.white : (warn ? _warn : _fg),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12.5),
+                ),
               ),
             ),
           );
@@ -302,251 +394,162 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
     );
   }
 
-  // ---- prototype: count · categories · pantry value ----
-  Widget _summary() {
-    final cats = _ingredients.map((i) => i.category).toSet().length;
-    final value =
-        _ingredients.fold<double>(0, (t, i) => t + (i.price ?? 0));
-    String money(double v) => v >= 1000
-        ? '${AppSettings.currency}${(v / 1000).toStringAsFixed(1)}k'
-        : '${AppSettings.currency}${v.toStringAsFixed(0)}';
-    Widget stat(String n, String l) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-            decoration: BoxDecoration(
-              color: _surface2,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: _line),
-            ),
-            child: Column(children: [
-              Text(n,
-                  style: const TextStyle(fontFamily: 'SpaceGrotesk',
-                      fontSize: 21,
-                      fontWeight: FontWeight.w600,
-                      color: _fg)),
-              const SizedBox(height: 2),
-              Text(l, style: const TextStyle(fontSize: 12, color: _muted)),
-            ]),
-          ),
-        );
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 2, 20, 12),
-      child: Row(children: [
-        stat('${_ingredients.length}', 'ingredients'),
-        const SizedBox(width: 10),
-        stat('$cats', cats == 1 ? 'category' : 'categories'),
-        const SizedBox(width: 10),
-        stat(money(value), 'pantry value'),
-      ]),
-    );
-  }
-
-  // ---- "need a price" and "looks like a duplicate" ----
-  List<Widget> _banners() {
-    final out = <Widget>[];
-    final np = _ingredients.where((i) => i.price == null).length;
-    if (np > 0 && _selectedCategory != _needsPrice) {
-      out.add(_banner(
-        warn: true,
-        text: TextSpan(children: [
-          TextSpan(
-              text: '$np need${np == 1 ? 's' : ''} a price. ',
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-          const TextSpan(text: 'Recipes using them show an incomplete cost.'),
-        ]),
-        action: 'Show',
-        onTap: () {
-          setState(() => _selectedCategory = _needsPrice);
-          _filterIngredients();
-        },
-      ));
-    }
-    final dups = _book.duplicatePairs();
-    if (dups.isNotEmpty) {
-      final a = dups.first[0], b = dups.first[1];
-      out.add(_banner(
-        warn: false,
-        text: TextSpan(children: [
-          const TextSpan(text: '“'),
-          TextSpan(text: '${a['name']}', style: const TextStyle(fontWeight: FontWeight.w700)),
-          const TextSpan(text: '” looks like “'),
-          TextSpan(text: '${b['name']}', style: const TextStyle(fontWeight: FontWeight.w700)),
-          TextSpan(text: '”.${dups.length > 1 ? '  +${dups.length - 1} more' : ''}'),
-        ]),
-        action: 'Merge',
-        onTap: () => _merge(a, b),
-      ));
-    }
-    return out;
-  }
-
-  Future<void> _merge(Map<String, dynamic> from, Map<String, dynamic> into) async {
-    final n = await _book.merge(from, into);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      behavior: SnackBarBehavior.floating,
-      content: Text('Merged into “${into['name']}” · $n recipe${n == 1 ? '' : 's'} updated'),
-    ));
-  }
-
-  Widget _banner(
-      {required bool warn,
-      required InlineSpan text,
-      required String action,
-      required VoidCallback onTap}) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 10),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-        decoration: BoxDecoration(
-          color: warn ? _warnSoft : _surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: warn ? _warnSoft : _line),
-        ),
-        child: Row(children: [
-          const Icon(Icons.warning_amber_rounded, color: _warn, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text.rich(text,
-                style: const TextStyle(fontSize: 13, height: 1.35, color: _fg)),
-          ),
-          const SizedBox(width: 8),
-          SizedBox(
-            height: 34,
-            child: ElevatedButton(
-              onPressed: onTap,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accent,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: Text(action,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-            ),
-          ),
-        ]),
-      ),
-    );
-  }
-
   static const _catHue = {
     'dairy': 200, 'produce': 96, 'vegetables': 96, 'fruits': 330,
     'meat': 4, 'seafood': 190, 'sauces': 28, 'spices': 12, 'oils': 48,
-    'grains': 38, 'bakery': 30, 'beverages': 210,
+    'grains': 38, 'bakery': 30, 'beverages': 210, 'other': 265,
   };
 
   Color _catColor(String cat) {
     final h = _catHue[cat.toLowerCase()] ?? (cat.hashCode % 360).abs();
-    return HSLColor.fromAHSL(1, h.toDouble(), 0.46, 0.48).toColor();
+    return HSLColor.fromAHSL(1, h.toDouble(), 0.46, 0.50).toColor();
   }
 
-  Widget _card(Ingredient item) {
-    final used = _book.usedIn(item.name).length;
-    return GestureDetector(
-      onTap: () => _navigateToEdit(item),
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: _surface,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _line),
-        ),
-        child: Row(
-          children: [
+  /// One row of the single list card (first/last rows round the corners).
+  Widget _row(Ingredient item, bool first, bool last) {
+    final used = _used(item);
+    const r = Radius.circular(14);
+    return Material(
+      color: _surface,
+      borderRadius: BorderRadius.vertical(top: first ? r : Radius.zero, bottom: last ? r : Radius.zero),
+      child: InkWell(
+        onTap: () => _navigateToEdit(item),
+        borderRadius: BorderRadius.vertical(top: first ? r : Radius.zero, bottom: last ? r : Radius.zero),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 52),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.vertical(top: first ? r : Radius.zero, bottom: last ? r : Radius.zero),
+            border: Border(
+              left: const BorderSide(color: _line),
+              right: const BorderSide(color: _line),
+              top: first ? const BorderSide(color: _line) : BorderSide.none,
+              bottom: const BorderSide(color: _line),
+            ),
+          ),
+          child: Row(children: [
             Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                  color: _catColor(item.category),
-                  borderRadius: BorderRadius.circular(14)),
-              alignment: Alignment.center,
-              child: Text(
-                  item.name.isNotEmpty ? item.name[0].toUpperCase() : '?',
-                  style: const TextStyle(fontFamily: 'SpaceGrotesk',
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white)),
-            ),
-            const SizedBox(width: 13),
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(color: _catColor(item.category), shape: BoxShape.circle)),
+            const SizedBox(width: 12),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          fontSize: 15,
-                          color: _fg)),
-                  const SizedBox(height: 3),
-                  Text.rich(
-                      TextSpan(children: [
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(item.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5, color: _fg)),
+                const SizedBox(height: 1),
+                Text('${item.category} · ${used > 0 ? '$used recipe${used == 1 ? '' : 's'}' : 'not used'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: _muted, fontSize: 12)),
+              ]),
+            ),
+            const SizedBox(width: 10),
+            item.price == null
+                ? const Text('No price',
+                    style: TextStyle(color: _warn, fontWeight: FontWeight.w600, fontSize: 12))
+                : Text.rich(
+                    TextSpan(children: [
+                      TextSpan(text: _money(item.price!)),
+                      if ((item.unit ?? '').isNotEmpty)
                         TextSpan(
-                            text: [
-                          item.category,
-                          if ((item.brand ?? '').trim().isNotEmpty) item.brand!.trim()
-                        ].join(' · ')),
-                        if (used > 0)
-                          TextSpan(
-                              text: ' · in $used recipe${used == 1 ? '' : 's'}',
-                              style: const TextStyle(
-                                  color: _accent, fontWeight: FontWeight.w600)),
-                      ]),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(color: _muted, fontSize: 12.5)),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                if (item.price == null)
-                  const Text('No price yet',
-                      style: TextStyle(
-                          color: _warn, fontWeight: FontWeight.w600, fontSize: 12.5)),
-                if (item.price != null)
-                  Text(
-                      '${AppSettings.currency}${item.price!.toStringAsFixed(0)}${item.unit != null ? '/${item.unit}' : ''}',
-                      style: const TextStyle(fontFamily: 'SpaceGrotesk',
-                          fontWeight: FontWeight.w600,
-                          color: _fg,
-                          fontSize: 15)),
-                if (item.calories != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 2),
-                    child: Text(
-                        ['pcs', 'pc', 'piece', 'dozen']
-                                .contains((item.unit ?? '').toLowerCase())
-                            ? '${item.calories!.toInt()} cal each'
-                            : '${item.calories!.toInt()} cal/100g',
-                        style: const TextStyle(color: _muted, fontSize: 11.5)),
+                            text: '/${item.unit}',
+                            style: const TextStyle(
+                                fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w500, color: _muted)),
+                    ]),
+                    style: const TextStyle(
+                        fontFamily: 'SpaceGrotesk',
+                        fontWeight: FontWeight.w600,
+                        color: _fg,
+                        fontSize: 14,
+                        fontFeatures: [FontFeature.tabularFigures()]),
                   ),
-              ],
-            ),
-          ],
+          ]),
         ),
       ),
     );
   }
 
   Widget _empty() {
+    final filtered = _ingredients.isNotEmpty;
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.restaurant_rounded, size: 72, color: _accentSoft),
-          const SizedBox(height: 16),
-          const Text('No ingredients yet',
-              style: TextStyle(
-                  color: _muted, fontSize: 15, fontWeight: FontWeight.w600)),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        const Icon(Icons.restaurant_rounded, size: 64, color: _accentSoft),
+        const SizedBox(height: 14),
+        Text(filtered ? 'No ingredients found' : 'No ingredients yet',
+            style: const TextStyle(color: _muted, fontSize: 15, fontWeight: FontWeight.w600)),
+        if (!filtered) ...[
+          const SizedBox(height: 6),
+          const Text('Tap + to add your first one.', style: TextStyle(color: _muted, fontSize: 13)),
         ],
+      ]),
+    );
+  }
+
+  // ------------------------------------------------------------------ actions
+  Future<void> _openSort() async {
+    final picked = await showModalBottomSheet<_Sort>(
+      context: context,
+      backgroundColor: _bg,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Center(
+              child: Container(
+                  width: 40, height: 5, decoration: BoxDecoration(color: _line, borderRadius: BorderRadius.circular(9))),
+            ),
+            const SizedBox(height: 14),
+            const Text('Sort ingredients',
+                style: TextStyle(fontFamily: 'SpaceGrotesk', fontSize: 18, fontWeight: FontWeight.w700, color: _fg)),
+            const SizedBox(height: 12),
+            for (final s in _Sort.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: InkWell(
+                  onTap: () => Navigator.pop(ctx, s),
+                  borderRadius: BorderRadius.circular(14),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: _surface,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: s == _sort ? _accent : _line),
+                    ),
+                    child: Row(children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text(_sortNames[s]!.$1,
+                              style: TextStyle(
+                                  fontSize: 14.5, fontWeight: FontWeight.w600, color: s == _sort ? _accent : _fg)),
+                          const SizedBox(height: 2),
+                          Text(_sortNames[s]!.$2, style: const TextStyle(fontSize: 12, color: _muted)),
+                        ]),
+                      ),
+                      if (s == _sort) const Icon(Icons.check_rounded, color: _accent),
+                    ]),
+                  ),
+                ),
+              ),
+          ]),
+        ),
       ),
     );
+    if (picked == null || !mounted) return;
+    _sort = picked;
+    _apply();
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  Future<void> _review(Widget screen, String Function(int) done) async {
+    final n = await Navigator.push<int>(context, MaterialPageRoute(builder: (_) => screen));
+    if (!mounted || n == null || n == 0) return;
+    _loadIngredients();
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(behavior: SnackBarBehavior.floating, content: Text(done(n))));
   }
 
   void _navigateToAdd() {
@@ -559,8 +562,7 @@ class _IngredientsScreenState extends State<IngredientsScreen> {
 
   void _navigateToEdit(Ingredient item) {
     Navigator.of(context)
-        .push(MaterialPageRoute(
-            builder: (_) => IngredientFormScreen(ingredient: item)))
+        .push(MaterialPageRoute(builder: (_) => IngredientFormScreen(ingredient: item)))
         .then((val) {
       if (val == true) _loadIngredients();
     });

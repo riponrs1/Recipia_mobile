@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../sync_provider.dart';
+import '../perf.dart';
+import '../database_helper.dart';
 import 'recipe_list_screen.dart';
 import 'profile_screen.dart';
 import 'ingredients_screen.dart';
+import 'trash_screen.dart';
 import '../services/price_book.dart';
 import '../tab_events.dart';
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
-const _muted = Color(0xFF636E72);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);
+const _muted = Color(0xFF6D625B);
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -28,7 +31,24 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+    tabRequest.addListener(_onTabRequest);
     _triggerBackgroundSync();
+  }
+
+  @override
+  void dispose() {
+    tabRequest.removeListener(_onTabRequest);
+    super.dispose();
+  }
+
+  /// Another screen (e.g. the profile counts) asked to open a tab.
+  void _onTabRequest() {
+    final i = tabRequest.value;
+    if (i == null || !mounted) return;
+    tabRequest.value = null;
+    _navigatorKeys[i].currentState?.popUntil((route) => route.isFirst);
+    setState(() => _currentIndex = i);
+    TabReselect.instance.fire(i); // start of the list, filters cleared
   }
 
   Future<void> _triggerBackgroundSync() async {
@@ -42,8 +62,12 @@ class _MainScreenState extends State<MainScreen> {
       }
       if (!mounted) return;
       setState(() => _hasInitialSyncRun = true);
+      // one-time tidy-up after the old auto-add bug (cheap when there's nothing to do)
+      await DatabaseHelper().dedupeIngredients().catchError((_) => 0);
+      // recipes in Trash for more than 30 days are deleted for good
+      purgeOldTrash().catchError((_) => 0);
       // one price list: make sure every recipe ingredient is in Ingredients
-      final report = await PriceBook.instance.migrateIfNeeded();
+      final report = await perfAsync('startup ingredients check', () => PriceBook.instance.migrateIfNeeded());
       if (mounted && report != null && report.firstRun && report.added > 0) {
         _showUpdateSummary(report);
       }
@@ -63,7 +87,7 @@ class _MainScreenState extends State<MainScreen> {
           child: Row(children: [
             Icon(icon, size: 20, color: color),
             const SizedBox(width: 10),
-            Expanded(child: Text(text, style: const TextStyle(fontSize: 14, height: 1.35, color: Color(0xFF2D3436)))),
+            Expanded(child: Text(text, style: const TextStyle(fontSize: 14, height: 1.35, color: Color(0xFF1E1916)))),
             if (action != null)
               TextButton(
                 onPressed: onTap,
@@ -82,7 +106,7 @@ class _MainScreenState extends State<MainScreen> {
           padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Ingredients updated',
-                style: TextStyle(fontFamily: 'SpaceGrotesk', fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF2D3436))),
+                style: TextStyle(fontFamily: 'SpaceGrotesk', fontSize: 20, fontWeight: FontWeight.w700, color: Color(0xFF1E1916))),
             const SizedBox(height: 4),
             const Text('Ingredients is now one price list for all recipes. Costs are the same as before.',
                 style: TextStyle(fontSize: 13, color: _muted, height: 1.4)),

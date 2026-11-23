@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../app_settings.dart';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
@@ -16,15 +15,16 @@ import 'backup_sync_screen.dart';
 import 'recipe_sections_screen.dart';
 import 'trash_screen.dart';
 import 'settings_screen.dart';
+import '../tab_events.dart';
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _surface2 = Color(0xFFFBF6E8);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
-const _accentSoft = Color(0xFFE6EFE9);
+const _surface2 = Color(0xFFF4EFE8);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);
+const _accentSoft = Color(0xFFFCEEE9);
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -50,7 +50,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    // show the profile saved on this phone first, then refresh from the server
+    final cached = await DatabaseHelper().getCachedData('user_profile');
+    if (cached is Map && mounted) {
+      final user = Map<String, dynamic>.from(cached);
+      final stats = await DatabaseHelper()
+          .getProfileStats(currentUserId: user['id'] as int?);
+      if (mounted) {
+        setState(() {
+          _userData = user;
+          _stats = stats;
+          _isLoading = false;
+        });
+      }
+    } else {
+      setState(() => _isLoading = true);
+    }
     try {
       final user = await _apiService.getUser();
       final stats = await DatabaseHelper().getProfileStats(currentUserId: user['id'] as int?);
@@ -183,33 +198,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
         const SizedBox(height: 2),
         Text(email, style: const TextStyle(fontSize: 14, color: _muted)),
         const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-              color: _accentSoft, borderRadius: BorderRadius.circular(999)),
-          child: const Text('Head Chef',
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w600, color: _accent)),
-        ),
+        _jobTitleChip(),
       ],
     );
+  }
+
+  /// The job title from the profile; empty → a small button to add one.
+  Widget _jobTitleChip() {
+    final title = (_userData?['profile']?['job_title'] ?? '').toString().trim();
+    if (title.isNotEmpty) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+            color: _accentSoft, borderRadius: BorderRadius.circular(999)),
+        child: Text(title,
+            style: const TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w600, color: _accent)),
+      );
+    }
+    return GestureDetector(
+      onTap: _openEditProfile,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: _accent.withOpacity(0.4))),
+        child: const Text('+ Add job title',
+            style: TextStyle(
+                fontSize: 12, fontWeight: FontWeight.w600, color: _accent)),
+      ),
+    );
+  }
+
+  Future<void> _openEditProfile() async {
+    if (_userData == null) return;
+    await Navigator.push(context,
+        MaterialPageRoute(builder: (_) => EditProfileScreen(userData: _userData!)));
+    _loadData();
   }
 
   Widget _statsRow() {
     return Row(
       children: [
-        _statCard(_stats['recipeCount'].toString(), 'recipes'),
+        _statCard(_stats['recipeCount'].toString(), 'recipes',
+            () => tabRequest.value = 0),
         const SizedBox(width: 10),
-        _statCard(_stats['sectionCount'].toString(), 'sections'),
+        _statCard(_stats['sectionCount'].toString(), 'sections', () async {
+          await Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const RecipeSectionsScreen()));
+          _loadData();
+        }),
         const SizedBox(width: 10),
-        _statCard('${_stats['ingredientCount'] ?? 0}', 'ingredients'),
+        _statCard('${_stats['ingredientCount'] ?? 0}', 'ingredients',
+            () => tabRequest.value = 1),
       ],
     );
   }
 
-  Widget _statCard(String value, String label) {
+  Widget _statCard(String value, String label, VoidCallback onTap) {
     return Expanded(
-      child: Container(
+      child: Semantics(
+        button: true,
+        label: '$value $label',
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
           color: _surface2,
@@ -224,6 +280,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(height: 2),
             Text(label, style: const TextStyle(fontSize: 12, color: _muted)),
           ],
+        ),
+      ),
+          ),
         ),
       ),
     );
@@ -296,9 +355,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 24),
-            const Text("DATA BACKUP", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFF1B4D3E))),
+            const Text("DATA BACKUP", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2, color: Color(0xFFC84B31))),
             const SizedBox(height: 32),
-            _buildExportOption(Icons.ios_share_rounded, 'SHARE COLLECTION', 'Export as a .db file', const Color(0xFF1B4D3E), () {
+            _buildExportOption(Icons.ios_share_rounded, 'SHARE COLLECTION', 'Export as a .db file', const Color(0xFFC84B31), () {
               Navigator.pop(ctx);
               _shareDatabase(context);
             }),
@@ -336,7 +395,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const SizedBox(width: 16),
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1, color: Color(0xFF1B4D3E))),
+                Text(label, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1, color: Color(0xFFC84B31))),
                 const SizedBox(height: 2),
                 Text(sub, style: const TextStyle(color: Color(0xFFB2BEC3), fontSize: 10, fontWeight: FontWeight.w700)),
               ]),
@@ -369,8 +428,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       final dbPath = p.join(dbDir, 'recipia_offline.db');
       final dbFile = File(dbPath);
       final fileName = 'Recipia_Backup_${DateTime.now().millisecondsSinceEpoch}.db';
-      await FilePicker.platform.saveFile(dialogTitle: 'Save Recipes', fileName: fileName, type: FileType.any, bytes: await dbFile.readAsBytes());
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup saved successfully!'), backgroundColor: Color(0xFF1B4D3E)));
+      await FilePicker.saveFile(dialogTitle: 'Save Recipes', fileName: fileName, bytes: await dbFile.readAsBytes());
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Backup saved successfully!'), backgroundColor: Color(0xFFC84B31)));
     } catch (e) {
       debugPrint('Save failed: $e');
     } finally {
@@ -380,9 +439,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _importDatabaseFromFile(BuildContext context) async {
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.any, allowMultiple: false);
-      if (result == null || result.files.single.path == null) return;
-      final filePath = result.files.single.path!;
+      final files = await FilePicker.pickFiles(type: FileType.any);
+      if (files.isEmpty || files.first.path == null) return;
+      final filePath = files.first.path!;
       
       final confirm = await showDialog<bool>(
         context: context,
@@ -390,7 +449,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           title: const Text("IMPORT RECIPES?", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
-          content: const Text("This will permanently replace your current recipes with the imported file.", style: TextStyle(fontSize: 13, color: Color(0xFF636E72))),
+          content: const Text("This will permanently replace your current recipes with the imported file.", style: TextStyle(fontSize: 13, color: Color(0xFF6D625B))),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("CANCEL", style: TextStyle(color: Color(0xFFB2BEC3), fontWeight: FontWeight.w900))),
             TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("PROCEED", style: TextStyle(color: Color(0xFFE1B12C), fontWeight: FontWeight.w900))),
@@ -409,7 +468,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           
           setState(() {}); 
           _loadData();
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recipes restored successfully!'), backgroundColor: Color(0xFF1B4D3E)));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Recipes restored successfully!'), backgroundColor: Color(0xFFC84B31)));
         }
       }
     } catch (e) {
@@ -426,10 +485,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Text('LOGOUT?', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
-        content: const Text('Are you sure you want to terminate your current session?', style: TextStyle(fontSize: 13, color: Color(0xFF636E72))),
+        content: const Text('Are you sure you want to terminate your current session?', style: TextStyle(fontSize: 13, color: Color(0xFF6D625B))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL', style: TextStyle(color: Color(0xFFB2BEC3), fontWeight: FontWeight.w900))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('LOGOUT', style: TextStyle(color: Color(0xFF1B4D3E), fontWeight: FontWeight.w900))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('LOGOUT', style: TextStyle(color: Color(0xFFC84B31), fontWeight: FontWeight.w900))),
         ],
       ),
     );

@@ -227,6 +227,14 @@ class DatabaseHelper {
         orderBy: 'changed_at DESC');
   }
 
+  /// When each ingredient's price last changed (ingredient key -> changed_at).
+  Future<Map<String, String>> latestPriceChanges() async {
+    final db = await database;
+    final rows = await db.rawQuery(
+        'SELECT ingredient_key, MAX(changed_at) AS t FROM ingredient_price_history GROUP BY ingredient_key');
+    return {for (final r in rows) r['ingredient_key'].toString(): (r['t'] ?? '').toString()};
+  }
+
   /// Keeps history and per-recipe prices when an ingredient is renamed/merged.
   Future<void> renamePriceKey(String oldKey, String newKey) async {
     final db = await database;
@@ -235,6 +243,74 @@ class DatabaseHelper {
     await db.rawUpdate(
         'UPDATE OR REPLACE recipe_price_overrides SET ingredient_key = ? WHERE ingredient_key = ?',
         [newKey, oldKey]);
+  }
+
+  /// Renames ingredient lines in every recipe, in one transaction.
+  /// [renames] maps a name key (lower case, single spaces) to the new name.
+  Future<int> renameLinesInRecipes(Map<String, String> renames, {Transaction? txn}) async {
+    if (renames.isEmpty) return 0;
+    Future<int> run(DatabaseExecutor ex) async {
+      var changed = 0;
+      final rows = await ex.query('recipes', columns: ['id', 'ingredients']);
+      for (final r in rows) {
+        final raw = r['ingredients']?.toString();
+        if (raw == null || raw.isEmpty) continue;
+        dynamic list;
+        try {
+          list = jsonDecode(raw);
+        } catch (_) {
+          continue;
+        }
+        if (list is! List) continue;
+        var hit = false;
+        for (final m in list) {
+          if (m is! Map) continue;
+          final k = (m['name']?.toString() ?? '').toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+          final to = renames[k];
+          if (to != null && m['name'] != to) {
+            m['name'] = to;
+            hit = true;
+          }
+        }
+        if (hit) {
+          await ex.update('recipes', {'ingredients': jsonEncode(list)},
+              where: 'id = ?', whereArgs: [r['id']]);
+          changed++;
+        }
+      }
+      return changed;
+    }
+
+    if (txn != null) return run(txn);
+    final db = await database;
+    return db.transaction((t) => run(t));
+  }
+
+  /// Saves new ingredients and renames recipe lines together, in one transaction.
+  Future<void> saveIngredientsAndRename(
+      List<Map<String, dynamic>> ingredients, Map<String, String> renames) async {
+    final db = await database;
+    await db.transaction((t) async {
+      final batch = t.batch();
+      for (final i in ingredients) {
+        batch.insert('ingredients', i, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit(noResult: true);
+      await renameLinesInRecipes(renames, txn: t);
+    });
+  }
+
+  /// Many "price for this recipe only" rows at once.
+  Future<void> setOverrides(List<(int, String, double)> rows) async {
+    if (rows.isEmpty) return;
+    final db = await database;
+    final batch = db.batch();
+    for (final (recipeId, key, price) in rows) {
+      batch.insert('recipe_price_overrides',
+          {'recipe_id': recipeId, 'ingredient_key': key, 'price': price},
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+    await batch.commit(noResult: true);
   }
 
   // ---- price for one recipe only ----
@@ -471,6 +547,85 @@ class DatabaseHelper {
     if (value is double) return value;
     if (value is int) return value.toDouble();
     return double.tryParse(value.toString());
+  }
+
+  /// Makes the phone's ingredient list exactly the server's list. Rows the
+  /// phone created that are still waiting to upload are kept.
+  Future<void> replaceIngredients(List<dynamic> serverList) async {
+    final db = await database;
+    await db.transaction((t) async {
+      final keep = <int>{};
+      for (final p in await t.query('pending_sync',
+          where: "action IN ('CREATE_INGREDIENT','CREATE_INGREDIENTS')")) {
+        if (p['action'] == 'CREATE_INGREDIENT') {
+          keep.add(p['target_id'] as int);
+        } else {
+          try {
+            for (final i in (jsonDecode(p['data'].toString())['items'] as List)) {
+              keep.add(i['id'] as int);
+            }
+          } catch (_) {}
+        }
+      }
+      final serverIds = serverList.map((e) => e['id']).toSet();
+      final local = await t.query('ingredients', columns: ['id']);
+      final batch = t.batch();
+      for (final r in local) {
+        final id = r['id'] as int;
+        if (!serverIds.contains(id) && !keep.contains(id)) {
+          batch.delete('ingredients', where: 'id = ?', whereArgs: [id]);
+        }
+      }
+      for (final ingredient in serverList) {
+        batch.insert('ingredients', {
+          'id': ingredient['id'],
+          'name': ingredient['name'],
+          'brand': ingredient['brand'],
+          'category': ingredient['category'] ?? 'Uncategorized',
+          'price': _toDouble(ingredient['price']),
+          'unit': ingredient['unit'],
+          'calories': _toDouble(ingredient['calories']),
+        }, conflictAlgorithm: ConflictAlgorithm.replace);
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
+  /// Clean-up after the old auto-add bug: one queued "add ingredient" per
+  /// name, and one ingredient per name on the phone (the one with a price).
+  Future<int> dedupeIngredients() async {
+    final db = await database;
+    var removed = 0;
+    await db.transaction((t) async {
+      String k(Object? n) => (n?.toString() ?? '').toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+      final seen = <String>{};
+      for (final p in await t.query('pending_sync',
+          where: "action = 'CREATE_INGREDIENT'", orderBy: 'id ASC')) {
+        String name = '';
+        try {
+          name = k(jsonDecode(p['data'].toString())['name']);
+        } catch (_) {}
+        if (name.isNotEmpty && !seen.add(name)) {
+          await t.delete('pending_sync', where: 'id = ?', whereArgs: [p['id']]);
+          removed++;
+        }
+      }
+      final byName = <String, Map<String, Object?>>{};
+      for (final r in await t.query('ingredients', orderBy: 'id ASC')) {
+        final name = k(r['name']);
+        final kept = byName[name];
+        if (kept == null) {
+          byName[name] = r;
+          continue;
+        }
+        // keep the row with a price; drop the other
+        final drop = (kept['price'] == null && r['price'] != null) ? kept : r;
+        if (identical(drop, kept)) byName[name] = r;
+        await t.delete('ingredients', where: 'id = ?', whereArgs: [drop['id']]);
+        removed++;
+      }
+    });
+    return removed;
   }
 
   Future<List<Map<String, dynamic>>> getCachedIngredients() async {

@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 2.0.2+3
 
 environment:
   sdk: ^3.5.3
@@ -38,23 +38,20 @@ dependencies:
   http: ^1.6.0
   shared_preferences: ^2.5.3
   image_picker: ^1.1.2
-  share_plus: ^7.2.0
-  permission_handler: ^11.3.1
-  file_picker: ^8.1.2
+  share_plus: ^13.3.1
+  file_picker: ^13.3.3
   pdf: ^3.11.3
+  printing: ^5.14.3
+  url_launcher: ^6.3.3
   excel: ^4.0.6
   path_provider: ^2.1.5
-  cached_network_image: ^3.4.1
+  cached_network_image: ^4.0.7
   flutter_image_compress: ^2.3.0
-  image_cropper: ^5.0.0
+  image_cropper: ^13.0.0
   sqflite: ^2.4.1
   path: ^1.9.0
-  google_sign_in: ^6.2.2
-  googleapis: ^13.2.0
-  googleapis_auth: ^1.6.0
-  extension_google_sign_in_as_googleapis_auth: ^2.0.13
   provider: ^6.1.2
-  archive: ^3.6.1
+  google_mlkit_text_recognition: ^1.0.3
 
 dev_dependencies:
   flutter_test:
@@ -65,8 +62,8 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^4.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter_launcher_icons:
   android: "launcher_icon"

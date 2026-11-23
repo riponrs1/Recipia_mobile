@@ -2,13 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import '../app_settings.dart';
 import 'package:provider/provider.dart';
-// ignore: deprecated_member_use
-import 'package:share_plus/share_plus.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:excel/excel.dart' hide Border, TextSpan;
-import 'package:path_provider/path_provider.dart';
 import '../api_service.dart';
 import '../models/recipe.dart';
 import '../database_helper.dart';
@@ -18,16 +12,17 @@ import 'recipe_form_screen.dart';
 import 'cost_screen.dart';
 import '../services/price_book.dart';
 import 'recipe_share_screen.dart';
+import 'export_screen.dart';
 
-const _bg = Color(0xFFFFFBF0);
+const _bg = Color(0xFFFAF8F5);
 const _surface = Color(0xFFFFFFFF);
-const _surface2 = Color(0xFFFBF6E8);
-const _fg = Color(0xFF2D3436);
-const _muted = Color(0xFF636E72);
-const _line = Color(0xFFECE3D1);
-const _accent = Color(0xFF1B4D3E);
-const _accentSoft = Color(0xFFE6EFE9);
-const _brown = Color(0xFF8D6E63);
+const _surface2 = Color(0xFFF4EFE8);
+const _fg = Color(0xFF1E1916);
+const _muted = Color(0xFF6D625B);
+const _line = Color(0xFFEAE3D9);
+const _accent = Color(0xFFC84B31);
+const _accentSoft = Color(0xFFFCEEE9);
+const _brown = Color(0xFF6E2C1E);
 
 /// Returned by [RecipeDetailScreen] when the recipe was moved to Trash,
 /// so the list can remove it and offer Undo.
@@ -55,6 +50,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   bool _isFetchingDetails = true;
   late TextEditingController _batchController;
   final _batchFocus = FocusNode();
+  bool _weightMode = false;
+  String _wtUnit = 'kg';
+  late TextEditingController _wtController;
+  final _wtFocus = FocusNode();
 
   List<String> _getSteps() {
     return _recipe.process
@@ -70,13 +69,22 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     _recipe = widget.recipe;
     _batchController =
         TextEditingController(text: _formatBatch(_batchMultiplier));
-    // tapping the number clears it so any amount can be typed;
-    // leaving it empty puts the current amount back
+    _wtController = TextEditingController();
+    // tapping the number selects it so typing replaces it cleanly without blanking it out
     _batchFocus.addListener(() {
       if (_batchFocus.hasFocus) {
-        _batchController.clear();
+        _batchController.selection = TextSelection(
+            baseOffset: 0, extentOffset: _batchController.text.length);
       } else if (_batchController.text.trim().isEmpty) {
         _batchController.text = _formatBatch(_batchMultiplier);
+      }
+    });
+    _wtFocus.addListener(() {
+      if (_wtFocus.hasFocus) {
+        _wtController.selection = TextSelection(
+            baseOffset: 0, extentOffset: _wtController.text.length);
+      } else {
+        _syncWeightInput();
       }
     });
     _parseIngredients();
@@ -88,10 +96,17 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   void dispose() {
     _batchController.dispose();
     _batchFocus.dispose();
+    _wtController.dispose();
+    _wtFocus.dispose();
     super.dispose();
   }
 
   Future<void> _fetchCurrentUser() async {
+    // who you are, from the phone first (no waiting for the server)
+    final cached = await DatabaseHelper().getCachedData('user_profile');
+    if (cached is Map && cached['id'] != null && mounted) {
+      setState(() => _currentUserId = cached['id'] as int?);
+    }
     try {
       final user = await _apiService.getUser();
       if (mounted) setState(() => _currentUserId = user['id']);
@@ -101,6 +116,23 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<void> _refreshRecipe() async {
+    // 1) show the copy saved on this phone straight away
+    if (_isFetchingDetails) {
+      try {
+        final localData = await DatabaseHelper().getRecipeById(_recipe.id);
+        final local = localData == null ? null : Recipe.fromJson(localData);
+        if (local != null &&
+            PriceBook.parseLines(local.ingredients).isNotEmpty &&
+            mounted) {
+          setState(() {
+            _recipe = local;
+            _parseIngredients();
+            _isFetchingDetails = false;
+          });
+        }
+      } catch (_) {}
+    }
+    // 2) then quietly refresh from the server
     try {
       final data = await _apiService.getRecipe(_recipe.id);
       if (mounted) {
@@ -158,12 +190,28 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
       ? val.toInt().toString()
       : val.toStringAsFixed(2).replaceAll(RegExp(r'0$'), '');
 
-  /// − / + change the batch by 1; the buttons never go below 1.
+  /// − / + step cleanly through 0.25, 0.5, 1, 2, 3...
   void _updateBatch(int dir) {
-    final next = dir > 0
-        ? (_batchMultiplier + 1e-9).floorToDouble() + 1
-        : (_batchMultiplier - 1e-9).ceilToDouble() - 1;
-    if (next < 1) return;
+    double next;
+    if (dir > 0) {
+      if (_batchMultiplier < 0.5 - 1e-9) {
+        next = 0.5;
+      } else if (_batchMultiplier < 1 - 1e-9) {
+        next = 1.0;
+      } else {
+        next = (_batchMultiplier + 1e-9).floorToDouble() + 1;
+      }
+    } else {
+      if (_batchMultiplier > 1 + 1e-9) {
+        next = (_batchMultiplier - 1e-9).ceilToDouble() - 1;
+      } else if (_batchMultiplier > 0.5 + 1e-9) {
+        next = 0.5;
+      } else if (_batchMultiplier > 0.25 + 1e-9) {
+        next = 0.25;
+      } else {
+        return;
+      }
+    }
     _batchFocus.unfocus();
     setState(() {
       _batchMultiplier = next;
@@ -188,14 +236,82 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return parts.length > 1 ? '$intPart.${parts[1]}' : intPart;
   }
 
-  double _totalGrams() {
+  double _baseGrams() {
     double totalG = 0;
     for (var item in _parsedIngredients) {
       double qty = double.tryParse(item['qty'].toString()) ?? 0;
       String unit = item['unit']?.toString() ?? '';
       totalG += UnitConverter.toGrams(qty, unit);
     }
-    return totalG * _batchMultiplier;
+    return totalG;
+  }
+
+  double _totalGrams() => _baseGrams() * _batchMultiplier;
+
+  String _formatGrams(double g) {
+    if (g >= 1000) {
+      final kg = g / 1000;
+      return '${_formatBatch(kg)} kg';
+    }
+    return '${_formatBatch(g)} g';
+  }
+
+  void _syncWeightInput() {
+    final bg = _baseGrams();
+    if (bg <= 0) return;
+    final curG = bg * _batchMultiplier;
+    final val = _wtUnit == 'kg' ? curG / 1000 : curG;
+    _wtController.text = _formatBatch(val);
+  }
+
+  void _setScaleMode(bool weightMode) {
+    final bg = _baseGrams();
+    if (weightMode && bg <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('This recipe has no gram/kg ingredients'),
+        behavior: SnackBarBehavior.floating,
+      ));
+      return;
+    }
+    _batchFocus.unfocus();
+    setState(() {
+      _weightMode = weightMode;
+      if (weightMode) {
+        final curG = bg * _batchMultiplier;
+        _wtUnit = curG >= 1000 ? 'kg' : 'g';
+        _syncWeightInput();
+      } else {
+        _batchController.text = _formatBatch(_batchMultiplier);
+      }
+    });
+    if (weightMode) {
+      Future.microtask(() {
+        if (mounted) _wtFocus.requestFocus();
+      });
+    }
+  }
+
+  void _typeTargetWeight(String v) {
+    final bg = _baseGrams();
+    final num = double.tryParse(v.replaceAll(',', '.'));
+    if (num == null || num <= 0 || bg <= 0) return;
+    final targetG = _wtUnit == 'kg' ? num * 1000 : num;
+    final f = targetG / bg;
+    if (f <= 0 || f > 1000) return;
+    setState(() {
+      _batchMultiplier = f;
+      _batchController.text = _formatBatch(f);
+    });
+  }
+
+  void _resetScale() {
+    _batchFocus.unfocus();
+    _wtFocus.unfocus();
+    setState(() {
+      _batchMultiplier = 1.0;
+      _batchController.text = '1';
+      _syncWeightInput();
+    });
   }
 
   String _fmtWeight(double g) {
@@ -206,109 +322,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return parts.length > 1 ? '$intPart.${parts[1]} g' : '$intPart g';
   }
 
-  CostSummary _summary() => PriceBook.instance.summarize(
-      _recipe.id, PriceBook.parseLines(_recipe.ingredients),
-      factor: _batchMultiplier);
-
-  String _calculateTotalCalories() => _summary().calories.toStringAsFixed(0);
-
-  String _calculateTotalCost() => _summary().total.toStringAsFixed(2);
-
-  Future<void> _downloadPdf() async {
-    try {
-      final pdf = pw.Document();
-      pdf.addPage(
-        pw.MultiPage(
-          build: (pw.Context context) => [
-            pw.Header(
-                level: 0,
-                child: pw.Text(_recipe.name,
-                    style: pw.TextStyle(
-                        fontSize: 24, fontWeight: pw.FontWeight.bold))),
-            if (_recipe.brandName != null)
-              pw.Text('Brand: ${_recipe.brandName}'),
-            pw.SizedBox(height: 10),
-            pw.Text(
-                'Nutrition: ${_calculateTotalCalories()} kcal | Cost: ${AppSettings.currency}${_calculateTotalCost()}'),
-            pw.SizedBox(height: 20),
-            pw.Text('Ingredients (Batch: ${_batchMultiplier}x)',
-                style:
-                    pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-            pw.TableHelper.fromTextArray(
-              context: context,
-              data: <List<String>>[
-                <String>['Ingredient', 'Quantity', 'Unit'],
-                ..._parsedIngredients.map((item) => [
-                      item['name'].toString(),
-                      _formatQty(item['qty']),
-                      item['unit'].toString()
-                    ]),
-              ],
-            ),
-            pw.SizedBox(height: 20),
-            pw.Text('Process',
-                style:
-                    pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
-            pw.Paragraph(text: _recipe.process),
-          ],
-        ),
-      );
-      final output = await getTemporaryDirectory();
-      final file =
-          File('${output.path}/${_recipe.name.replaceAll(' ', '_')}.pdf');
-      await file.writeAsBytes(await pdf.save());
-      await Share.shareXFiles([XFile(file.path)],
-          text: 'Here is the PDF for ${_recipe.name}');
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Error creating PDF: $e'),
-            backgroundColor: Colors.red));
-      }
-    }
-  }
-
-  Future<void> _downloadExcel() async {
-    try {
-      var excel = Excel.createExcel();
-      Sheet sheetObject = excel['Sheet1'];
-      sheetObject.cell(CellIndex.indexByString("A1")).value =
-          TextCellValue("Recipe: ${_recipe.name}");
-      sheetObject.cell(CellIndex.indexByString("A2")).value = TextCellValue(
-          "Kcal: ${_calculateTotalCalories()} | Cost: ${AppSettings.currency}${_calculateTotalCost()}");
-      sheetObject.cell(CellIndex.indexByString("A4")).value =
-          TextCellValue("Ingredient");
-      sheetObject.cell(CellIndex.indexByString("B4")).value =
-          TextCellValue("Quantity");
-      sheetObject.cell(CellIndex.indexByString("C4")).value =
-          TextCellValue("Unit");
-      for (var i = 0; i < _parsedIngredients.length; i++) {
-        var item = _parsedIngredients[i];
-        var row = i + 5;
-        sheetObject.cell(CellIndex.indexByString("A$row")).value =
-            TextCellValue(item['name'].toString());
-        sheetObject.cell(CellIndex.indexByString("B$row")).value =
-            DoubleCellValue(double.tryParse(_formatQty(item['qty'])) ?? 0.0);
-        sheetObject.cell(CellIndex.indexByString("C$row")).value =
-            TextCellValue(item['unit'].toString());
-      }
-      final output = await getTemporaryDirectory();
-      final file =
-          File('${output.path}/${_recipe.name.replaceAll(' ', '_')}.xlsx');
-      final fileBytes = excel.save();
-      if (fileBytes != null) {
-        await file.writeAsBytes(fileBytes);
-        await Share.shareXFiles([XFile(file.path)],
-            text: 'Here is the Excel file for ${_recipe.name}');
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Error creating Excel: $e'),
-            backgroundColor: Colors.red));
-      }
-    }
-  }
+  void _export({bool excel = false}) => Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (_) => ExportScreen(
+              recipe: _recipe, factor: _batchMultiplier, excel: excel)));
 
   /// Moves the recipe to Trash (no dialog). The list screen shows
   /// "moved to Trash · Undo" when it receives the [RecipeDeleted] result.
@@ -394,8 +412,11 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
   }
 
   Future<void> _openShare() async {
-    await Navigator.push(context,
-        MaterialPageRoute(builder: (_) => RecipeShareScreen(recipe: _recipe)));
+    await Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => RecipeShareScreen(
+                recipe: _recipe, batchMultiplier: _batchMultiplier)));
     _refreshRecipe();
   }
 
@@ -638,62 +659,198 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
           fontSize: 17, fontWeight: FontWeight.w700, color: _fg));
 
   Widget _batchControl() {
+    final scaled = (_batchMultiplier - 1.0).abs() > 1e-6;
+    final bg = _baseGrams();
+    final showMeta = scaled || _weightMode;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 10, 10),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
         color: _surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _line),
       ),
-      child: Row(
+      child: Column(
         children: [
-          const Expanded(
-            child: Text('Batch size',
-                style: TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 15, color: _fg)),
-          ),
-          _batchIcon(Icons.remove_rounded,
-              _batchMultiplier <= 1 ? null : () => _updateBatch(-1)),
-          const SizedBox(width: 6),
-          SizedBox(
-            width: 64,
-            height: 40,
-            child: TextField(
-              controller: _batchController,
-              focusNode: _batchFocus,
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  fontFamily: 'SpaceGrotesk',
-                  fontWeight: FontWeight.w600,
-                  fontSize: 17,
-                  color: _batchFocus.hasFocus ? _fg : Colors.white),
-              decoration: InputDecoration(
-                isDense: true,
-                filled: true,
-                fillColor: _batchFocus.hasFocus ? _surface : _accent,
-                contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: _accent)),
-                focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: _accent, width: 1.5)),
+          Row(
+            children: [
+              // Batch | Weight mode toggle
+              Container(
+                padding: const EdgeInsets.all(3),
+                decoration: BoxDecoration(
+                  color: _surface2,
+                  borderRadius: BorderRadius.circular(11),
+                  border: Border.all(color: _line),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _scaleModeTab('Batch', !_weightMode, () => _setScaleMode(false)),
+                    const SizedBox(width: 2),
+                    _scaleModeTab('Weight', _weightMode, () => _setScaleMode(true)),
+                  ],
+                ),
               ),
-              onTap: () => setState(() {}),
-              onSubmitted: (_) => setState(() {}),
-              onChanged: (val) {
-                final d = double.tryParse(val.replaceAll(',', '.'));
-                if (d != null && d > 0 && d <= 1000) {
-                  setState(() => _batchMultiplier = d);
-                }
-              },
-            ),
+              const Spacer(),
+              if (!_weightMode) ...[
+                _batchIcon(Icons.remove_rounded,
+                    _batchMultiplier <= 0.25 + 1e-9 ? null : () => _updateBatch(-1)),
+                const SizedBox(width: 6),
+                SizedBox(
+                  width: 64,
+                  height: 40,
+                  child: TextField(
+                    controller: _batchController,
+                    focusNode: _batchFocus,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontFamily: 'SpaceGrotesk',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 17,
+                        color: _batchFocus.hasFocus ? _fg : Colors.white),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: true,
+                      fillColor: _batchFocus.hasFocus ? _surface : _accent,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                      enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: _accent)),
+                      focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: const BorderSide(color: _accent, width: 1.5)),
+                    ),
+                    onTap: () => setState(() {}),
+                    onSubmitted: (_) => setState(() {}),
+                    onChanged: (val) {
+                      final d = double.tryParse(val.replaceAll(',', '.'));
+                      if (d != null && d > 0 && d <= 1000) {
+                        setState(() => _batchMultiplier = d);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 6),
+                _batchIcon(Icons.add_rounded, () => _updateBatch(1)),
+              ] else
+                Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: _surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _accent),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 76,
+                        child: TextField(
+                          controller: _wtController,
+                          focusNode: _wtFocus,
+                          keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontFamily: 'SpaceGrotesk',
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                              color: _fg),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.symmetric(horizontal: 6),
+                          ),
+                          onChanged: _typeTargetWeight,
+                        ),
+                      ),
+                      Container(width: 1, height: 22, color: _line),
+                      Container(
+                        color: _accentSoft,
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value: _wtUnit,
+                            isDense: true,
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                                size: 18, color: _accent),
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                                color: _accent),
+                            items: const [
+                              DropdownMenuItem(value: 'g', child: Text('g')),
+                              DropdownMenuItem(value: 'kg', child: Text('kg')),
+                            ],
+                            onChanged: (u) {
+                              if (u == null) return;
+                              setState(() {
+                                _wtUnit = u;
+                                _syncWeightInput();
+                              });
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(width: 6),
-          _batchIcon(Icons.add_rounded, () => _updateBatch(1)),
+          if (showMeta) ...[
+            const SizedBox(height: 8),
+            Container(height: 1, color: _line),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  _weightMode
+                      ? '${_formatBatch(_batchMultiplier)}× of 1 batch (${_formatGrams(bg)})'
+                      : 'Scaled ${_formatBatch(_batchMultiplier)}× · Total ${_formatGrams(_totalGrams())}',
+                  style: const TextStyle(fontSize: 12.5, color: _muted),
+                ),
+                if (scaled)
+                  GestureDetector(
+                    onTap: _resetScale,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _accentSoft,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text('Reset 1×',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: _accent)),
+                    ),
+                  ),
+              ],
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Widget _scaleModeTab(String label, bool active, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? _accent : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: active ? Colors.white : _muted)),
       ),
     );
   }
@@ -827,9 +984,9 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen> {
     return Column(
       children: [
         Row(children: [
-          Expanded(child: _btn(Icons.picture_as_pdf_outlined, 'PDF', _downloadPdf)),
+          Expanded(child: _btn(Icons.picture_as_pdf_outlined, 'PDF', _export)),
           const SizedBox(width: 10),
-          Expanded(child: _btn(Icons.table_view_outlined, 'Excel', _downloadExcel)),
+          Expanded(child: _btn(Icons.table_view_outlined, 'Excel', () => _export(excel: true))),
         ]),
       ],
     );
